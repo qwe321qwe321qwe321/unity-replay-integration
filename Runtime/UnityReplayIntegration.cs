@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Threading.Tasks;
+#if INSTANT_REPLAY_PRESENT
 using InstantReplay;
 using UniEnc;
+#endif
 using UnityEngine;
 
 namespace UnityReplayIntegration {
@@ -62,9 +64,11 @@ namespace UnityReplayIntegration {
 
 		#endregion
 
+#if INSTANT_REPLAY_PRESENT
 		private RealtimeInstantReplaySession _currentSession;
 		private volatile bool _pendingSessionRestart;
 		private bool _isExporting;
+#endif
 
 		#region Discord Config (read by Discord extension assembly)
 
@@ -118,12 +122,14 @@ namespace UnityReplayIntegration {
 		}
 
 		private void HandlePendingSessionRestart() {
+#if INSTANT_REPLAY_PRESENT
 			if (!_pendingSessionRestart) return;
 			// ExportVideoCoroutine calls StartRecording on completion; skip if export is in progress.
 			if (_isExporting) return;
 			_pendingSessionRestart = false;
 			DisposeCurrentSession();
 			StartRecording();
+#endif
 		}
 
 		private void HandleHotkeys() {
@@ -142,11 +148,29 @@ namespace UnityReplayIntegration {
 
 		#region Public API
 
-		public bool IsRecording => _currentSession != null;
-		public bool IsPaused => _currentSession?.IsPaused ?? false;
+		public bool IsRecording {
+			get {
+#if INSTANT_REPLAY_PRESENT
+				return _currentSession != null;
+#else
+				return false;
+#endif
+			}
+		}
+
+		public bool IsPaused {
+			get {
+#if INSTANT_REPLAY_PRESENT
+				return _currentSession?.IsPaused ?? false;
+#else
+				return false;
+#endif
+			}
+		}
 
 		/// <summary>Starts a new background recording session. No-op if already recording.</summary>
 		public void StartRecording() {
+#if INSTANT_REPLAY_PRESENT
 			if (_currentSession != null) return;
 
 			var sessionBox = new SessionBox();
@@ -178,19 +202,32 @@ namespace UnityReplayIntegration {
 				}
 			);
 			Debug.Log("[UnityReplayIntegration] Recording started.");
+#else
+			Debug.LogWarning("[UnityReplayIntegration] InstantReplay is not installed. Please install jp.co.cyberagent.instant-replay via the Package Manager.");
+#endif
 		}
 
 		/// <summary>Stops and discards the current recording session without exporting.</summary>
 		public void StopRecording() {
+#if INSTANT_REPLAY_PRESENT
 			DisposeCurrentSession();
 			Debug.Log("[UnityReplayIntegration] Recording stopped.");
+#endif
 		}
 
 		/// <summary>Pauses the current recording session.</summary>
-		public void PauseRecording() => _currentSession?.Pause();
+		public void PauseRecording() {
+#if INSTANT_REPLAY_PRESENT
+			_currentSession?.Pause();
+#endif
+		}
 
 		/// <summary>Resumes the current recording session.</summary>
-		public void ResumeRecording() => _currentSession?.Resume();
+		public void ResumeRecording() {
+#if INSTANT_REPLAY_PRESENT
+			_currentSession?.Resume();
+#endif
+		}
 
 		/// <summary>
 		/// Triggers video export as a coroutine. Automatically restarts recording after export.
@@ -199,12 +236,16 @@ namespace UnityReplayIntegration {
 		/// </summary>
 		/// <param name="onComplete">Called with the exported file path, or null on failure.</param>
 		public void TriggerExportVideo(Action<string> onComplete = null) {
+#if INSTANT_REPLAY_PRESENT
 			if (_isExporting) {
 				Debug.LogWarning("[UnityReplayIntegration] Export already in progress.");
 				onComplete?.Invoke(null);
 				return;
 			}
 			StartCoroutine(ExportVideoCoroutine(onComplete));
+#else
+			onComplete?.Invoke(null);
+#endif
 		}
 
 		/// <summary>
@@ -221,6 +262,7 @@ namespace UnityReplayIntegration {
 		#region Coroutine Implementations
 
 		private IEnumerator ExportVideoCoroutine(Action<string> onComplete) {
+#if INSTANT_REPLAY_PRESENT
 			_isExporting = true;
 
 			var session = _currentSession;
@@ -277,6 +319,10 @@ namespace UnityReplayIntegration {
 			}
 
 			onComplete?.Invoke(exportedVideoPath);
+#else
+			onComplete?.Invoke(null);
+			yield break;
+#endif
 		}
 
 		private IEnumerator CaptureScreenshotCoroutine(Action<string> onComplete) {
@@ -318,9 +364,11 @@ namespace UnityReplayIntegration {
 		#region Private Helpers
 
 		private void DisposeCurrentSession() {
+#if INSTANT_REPLAY_PRESENT
 			if (_currentSession == null) return;
 			_currentSession.Dispose();
 			_currentSession = null;
+#endif
 		}
 
 		private string GetOutputDirectory() =>
@@ -328,8 +376,10 @@ namespace UnityReplayIntegration {
 
 		#endregion
 
+#if INSTANT_REPLAY_PRESENT
 		private sealed class SessionBox {
 			public RealtimeInstantReplaySession Session;
 		}
+#endif
 	}
 }

@@ -2,8 +2,8 @@
     "name": "UnityReplayIntegration.UniTask",
     "rootNamespace": "UnityReplayIntegration",
     "references": [
-        "UnityReplayIntegration.Runtime",
-        "UniTask"
+        "GUID:90b6ebbbac8bc014cb7f0d910bc85a52",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

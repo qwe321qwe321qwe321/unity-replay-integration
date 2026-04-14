@@ -1,10 +1,10 @@
 {
     "name": "UnityReplayIntegration.Runtime",
-    "rootNamespace": "PEDev.UnityReplayIntegration",
+    "rootNamespace": "",
     "references": [
-        "InstantReplay",
-        "Unity.InputSystem",
-        "UniEnc"
+        "GUID:75469ad4d38634e559750d17036d5f7c",
+        "GUID:1050604f2d3a84fcabcc4e9b9ff6745b",
+        "GUID:cbc5f87df9298458d9b3f2ed13ca9ba4"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -13,6 +13,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "jp.co.cyberagent.instant-replay",
+            "expression": "",
+            "define": "INSTANT_REPLAY_PRESENT"
+        }
+    ],
     "noEngineReferences": false
 }

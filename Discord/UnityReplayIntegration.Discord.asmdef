@@ -2,8 +2,8 @@
     "name": "UnityReplayIntegration.Discord",
     "rootNamespace": "PEDev.UnityReplayIntegration",
     "references": [
-        "UnityReplayIntegration.Runtime",
-        "DiscordWebhook"
+        "GUID:90b6ebbbac8bc014cb7f0d910bc85a52",
+        "GUID:0327e914ee143aa4584be6683cb12f63"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,0 +1,18 @@
+{
+    "name": "UnityReplayIntegration.Editor",
+    "rootNamespace": "PEDev.UnityReplayIntegration.Editor",
+    "references": [
+        "UnityReplayIntegration.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

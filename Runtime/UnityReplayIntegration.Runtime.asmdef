@@ -1,0 +1,18 @@
+{
+    "name": "UnityReplayIntegration.Runtime",
+    "rootNamespace": "PEDev.UnityReplayIntegration",
+    "references": [
+        "InstantReplay",
+        "Unity.InputSystem",
+        "UniEnc"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

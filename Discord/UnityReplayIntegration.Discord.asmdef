@@ -1,0 +1,25 @@
+{
+    "name": "UnityReplayIntegration.Discord",
+    "rootNamespace": "PEDev.UnityReplayIntegration",
+    "references": [
+        "UnityReplayIntegration.Runtime",
+        "DiscordWebhook"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "DISCORD_WEBHOOK_PRESENT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.pedev.unity-discord-webhook",
+            "expression": "",
+            "define": "DISCORD_WEBHOOK_PRESENT"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,19 @@
+{
+  "name": "com.pedev.unity-replay-integration",
+  "version": "0.1.0",
+  "displayName": "Unity Replay Integration",
+  "description": "Background video recording via InstantReplay and screenshot capture, with optional Discord webhook upload and optional UniTask async API.",
+  "license": "MIT",
+  "unity": "2022.3",
+  "author": {
+    "name": "PeDev",
+    "url": "https://github.com/qwe321qwe321qwe321"
+  },
+  "keywords": [
+    "recording",
+    "replay",
+    "instant-replay",
+    "discord",
+    "screenshot"
+  ]
+}

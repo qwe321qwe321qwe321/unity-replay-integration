@@ -4,14 +4,14 @@
 
 > 本文件由 AI agent（Claude Sonnet 4.6）撰寫與維護。
 
-`Unity Replay Integration` 是一個 Unity package，將 **InstantReplay**（背景錄影引擎）與 **Discord Webhook**（影片與截圖輸出端）整合為單一易用的系統。只需在場景中放入一個元件，即可在遊戲執行中持續進行背景錄影、匯出即時回放片段、擷取截圖，並可選擇自動上傳至 Discord Webhook。
+`Unity Replay Integration` 是一個 Unity package，將 **[InstantReplay](https://github.com/CyberAgentGameEntertainment/InstantReplay)**（背景錄影引擎）與 **[Discord Webhook](https://github.com/qwe321qwe321qwe321/Unity-DiscordWebhook)**（影片與截圖輸出端）整合為單一易用的系統。只需在場景中放入一個元件，即可在遊戲執行中持續進行背景錄影、匯出即時回放片段、擷取截圖，並可選擇自動上傳至 Discord Webhook。
 
 此套件同時處理了 InstantReplay 與 Discord Webhook 的相依性問題，並透過內建的 Editor 安裝檢查機制，自動偵測並提示安裝缺少的套件，大幅降低接入成本。
 
 ## 功能特色
 
-- 整合 **InstantReplay** 作為背景錄影引擎，無縫提供即時回放能力
-- 整合 **Discord Webhook** 作為影片與截圖的輸出端，一鍵上傳至 Discord
+- 整合 **[InstantReplay](https://github.com/CyberAgentGameEntertainment/InstantReplay)** 作為背景錄影引擎，無縫提供即時回放能力
+- 整合 **[Discord Webhook](https://github.com/qwe321qwe321qwe321/Unity-DiscordWebhook)** 作為影片與截圖的輸出端，一鍵上傳至 Discord
 - 支援匯出回放影片 `mp4`
 - 支援擷取螢幕截圖 `png`
 - 可綁定熱鍵快速匯出影片與截圖

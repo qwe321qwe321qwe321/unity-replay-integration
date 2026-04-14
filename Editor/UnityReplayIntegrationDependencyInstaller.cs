@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,31 +20,86 @@ namespace UnityReplayIntegration.Editor {
 	[InitializeOnLoad]
 	static class UnityReplayIntegrationDependencyInstaller {
 		// ── Required ─────────────────────────────────────────────────────────
-		const string InstantReplayPackageId     = "jp.co.cyberagent.instant-replay";
-		const string InstantReplayDepsPackageId = "jp.co.cyberagent.instant-replay.dependencies";
-		const string InstantReplayGitUrl        = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=Packages/jp.co.cyberagent.instant-replay#release";
-		const string InstantReplayDepsGitUrl    = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=/Packages/jp.co.cyberagent.instant-replay.dependencies#release";
+		internal const string InstantReplayPackageId     = "jp.co.cyberagent.instant-replay";
+		internal const string InstantReplayDepsPackageId = "jp.co.cyberagent.instant-replay.dependencies";
+		const string InstantReplayGitUrl                 = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=Packages/jp.co.cyberagent.instant-replay#release";
+		const string InstantReplayDepsGitUrl             = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=/Packages/jp.co.cyberagent.instant-replay.dependencies#release";
 
 		// UnityNuGet scoped registry – required so UPM can resolve org.nuget.* packages
 		// that jp.co.cyberagent.instant-replay.dependencies depends on.
 		const string UnityNuGetRegistryName = "UnityNuGet";
-		const string UnityNuGetRegistryUrl  = "https://unitynuget-registry.openupm.com";
+		internal const string UnityNuGetRegistryUrl  = "https://unitynuget-registry.openupm.com";
 		const string UnityNuGetScope        = "org.nuget";
 
 		// ── Optional ─────────────────────────────────────────────────────────
-		const string DiscordWebhookPackageId = "com.pedev.unity-discord-webhook";
-		const string DiscordWebhookGitUrl    = "https://github.com/qwe321qwe321qwe321/Unity-DiscordWebhook.git?path=src/DiscordWebhook/Assets/DiscordWebhook";
+		internal const string DiscordWebhookPackageId = "com.pedev.unity-discord-webhook";
+		const string DiscordWebhookGitUrl             = "https://github.com/qwe321qwe321qwe321/Unity-DiscordWebhook.git?path=src/DiscordWebhook/Assets/DiscordWebhook";
 
-		const string UniTaskPackageId = "com.cysharp.unitask";
-		const string UniTaskGitUrl    = "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask";
+		internal const string UniTaskPackageId = "com.cysharp.unitask";
+		const string UniTaskGitUrl             = "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask";
 
 		static ListRequest _listRequest;
 		static Queue<string> _installQueue;
 		static AddRequest _currentAddRequest;
+		static string _currentInstallUrl;
+		static HashSet<string> _installedIds = new HashSet<string>();
+		static bool _packageStateKnown;
+		static bool _autoOpenWindowAfterNextRefresh;
+
+		internal static event Action StateChanged;
+		internal static string LastOperationMessage { get; private set; }
+		internal static bool LastOperationFailed { get; private set; }
+		internal static bool HasPackageState => _packageStateKnown;
+		internal static bool IsInstalling => _currentAddRequest != null || (_installQueue != null && _installQueue.Count > 0);
+		internal static bool IsInstantReplayInstalled => IsPackageInstalled(InstantReplayPackageId);
+		internal static bool IsInstantReplayFullyInstalled =>
+			IsPackageInstalled(InstantReplayPackageId) &&
+			IsPackageInstalled(InstantReplayDepsPackageId);
 
 		static UnityReplayIntegrationDependencyInstaller() {
+			RefreshInstalledPackages(autoOpenWindowWhenRequiredMissing: true);
+		}
+
+		internal static bool IsPackageInstalled(string packageId) {
+			return _packageStateKnown && _installedIds.Contains(packageId);
+		}
+
+		internal static bool HasUnityNuGetRegistryConfigured() {
+			string manifestPath = GetManifestPath();
+			if (!File.Exists(manifestPath)) return false;
+			return File.ReadAllText(manifestPath).Contains(UnityNuGetRegistryUrl);
+		}
+
+		internal static void RefreshInstalledPackages(bool autoOpenWindowWhenRequiredMissing = false) {
+			if (_listRequest != null && !_listRequest.IsCompleted)
+				return;
+
+			_autoOpenWindowAfterNextRefresh = autoOpenWindowWhenRequiredMissing;
 			_listRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
+			EditorApplication.update -= WaitForPackageList;
 			EditorApplication.update += WaitForPackageList;
+			NotifyStateChanged();
+		}
+
+		internal static void InstallMissingRequiredDependencies() {
+			if (!EnsureUnityNuGetRegistry())
+				return;
+
+			EnqueueInstalls(GetMissingRequiredInstallUrls());
+		}
+
+		internal static void InstallOptionalDependency(string packageId) {
+			switch (packageId) {
+				case DiscordWebhookPackageId:
+					if (!IsPackageInstalled(DiscordWebhookPackageId))
+						EnqueueInstalls(new[] { DiscordWebhookGitUrl });
+					break;
+
+				case UniTaskPackageId:
+					if (!IsPackageInstalled(UniTaskPackageId))
+						EnqueueInstalls(new[] { UniTaskGitUrl });
+					break;
+			}
 		}
 
 		static void WaitForPackageList() {
@@ -51,80 +107,55 @@ namespace UnityReplayIntegration.Editor {
 			EditorApplication.update -= WaitForPackageList;
 
 			if (_listRequest.Status == StatusCode.Failure) {
-				Debug.LogError($"[UnityReplayIntegration] Failed to list packages: {_listRequest.Error.message}");
+				SetOperationMessage($"Failed to list packages: {_listRequest.Error.message}", failed: true);
+				Debug.LogError($"[UnityReplayIntegration] {LastOperationMessage}");
+				_autoOpenWindowAfterNextRefresh = false;
 				return;
 			}
 
-			var installedIds = new HashSet<string>(_listRequest.Result.Select(p => p.name));
-			PromptMissingDependencies(installedIds);
+			_installedIds = new HashSet<string>(_listRequest.Result.Select(p => p.name));
+			_packageStateKnown = true;
+			NotifyStateChanged();
+
+			if (_autoOpenWindowAfterNextRefresh && !IsInstalling && !IsInstantReplayInstalled)
+				UnityReplayIntegrationDependencyWindow.OpenWindow();
+
+			_autoOpenWindowAfterNextRefresh = false;
 		}
 
-		static void PromptMissingDependencies(HashSet<string> installedIds) {
-			bool instantReplayMissing =
-				!installedIds.Contains(InstantReplayPackageId) ||
-				!installedIds.Contains(InstantReplayDepsPackageId);
+		static IEnumerable<string> GetMissingRequiredInstallUrls() {
+			if (!IsPackageInstalled(InstantReplayDepsPackageId))
+				yield return InstantReplayDepsGitUrl;
 
-			var requiredInstalls = new Queue<string>();
-			var optionalInstalls = new Queue<string>();
+			if (!IsPackageInstalled(InstantReplayPackageId))
+				yield return InstantReplayGitUrl;
+		}
 
-			// ── Required ─────────────────────────────────────────────────────
-			if (instantReplayMissing) {
-				bool confirm = EditorUtility.DisplayDialog(
-					"Unity Replay Integration — Required Dependency",
-					"InstantReplay (jp.co.cyberagent.instant-replay) is required but is not fully installed.\n\n" +
-					"This will:\n" +
-					"  1. Add the UnityNuGet scoped registry to manifest.json\n" +
-					"  2. Install jp.co.cyberagent.instant-replay.dependencies\n" +
-					"  3. Install jp.co.cyberagent.instant-replay\n\n" +
-					"Install now?",
-					"Install",
-					"Cancel"
-				);
-
-				if (confirm) {
-					// Step 1: ensure the scoped registry is present BEFORE installing packages,
-					// because the .dependencies package resolves org.nuget.* through it.
-					EnsureUnityNuGetRegistry();
-
-					// Step 2+3: queue package installs (deps first, then main).
-					if (!installedIds.Contains(InstantReplayDepsPackageId))
-						requiredInstalls.Enqueue(InstantReplayDepsGitUrl);
-					if (!installedIds.Contains(InstantReplayPackageId))
-						requiredInstalls.Enqueue(InstantReplayGitUrl);
-				}
+		static void EnqueueInstalls(IEnumerable<string> packageUrls) {
+			var newUrls = packageUrls.Where(url => !string.IsNullOrWhiteSpace(url)).ToArray();
+			if (newUrls.Length == 0) {
+				RefreshInstalledPackages();
+				return;
 			}
 
-			// ── Optional ─────────────────────────────────────────────────────
-			if (!installedIds.Contains(DiscordWebhookPackageId)) {
-				bool confirm = EditorUtility.DisplayDialog(
-					"Unity Replay Integration — Optional Package",
-					"Discord Webhook (com.pedev.unity-discord-webhook) is not installed.\n\n" +
-					"Enables uploading clips and screenshots to Discord.\n\nInstall now?",
-					"Install",
-					"Skip"
-				);
-				if (confirm)
-					optionalInstalls.Enqueue(DiscordWebhookGitUrl);
+			if (_installQueue == null)
+				_installQueue = new Queue<string>();
+
+			var queuedUrls = new HashSet<string>(_installQueue);
+			if (!string.IsNullOrEmpty(_currentInstallUrl))
+				queuedUrls.Add(_currentInstallUrl);
+
+			foreach (string url in newUrls) {
+				if (queuedUrls.Add(url))
+					_installQueue.Enqueue(url);
 			}
 
-			if (!installedIds.Contains(UniTaskPackageId)) {
-				bool confirm = EditorUtility.DisplayDialog(
-					"Unity Replay Integration — Optional Package",
-					"UniTask (com.cysharp.unitask) is not installed.\n\n" +
-					"Provides async/await API (falls back to coroutines without it).\n\nInstall now?",
-					"Install",
-					"Skip"
-				);
-				if (confirm)
-					optionalInstalls.Enqueue(UniTaskGitUrl);
-			}
+			if (_installQueue.Count == 0)
+				return;
 
-			// Merge: required first, then optional.
-			var combined = new Queue<string>(requiredInstalls.Concat(optionalInstalls));
-			if (combined.Count > 0) {
-				_installQueue = combined;
-				EditorApplication.update += ProcessInstallQueue;
-			}
+			SetOperationMessage("Installing dependencies...");
+			EditorApplication.update -= ProcessInstallQueue;
+			EditorApplication.update += ProcessInstallQueue;
 		}
 
 		/// <summary>
@@ -132,19 +163,19 @@ namespace UnityReplayIntegration.Editor {
 		/// if it is not already present. This must happen before UPM resolves packages
 		/// that depend on org.nuget.* (such as jp.co.cyberagent.instant-replay.dependencies).
 		/// </summary>
-		static void EnsureUnityNuGetRegistry() {
-			string manifestPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../Packages/manifest.json"));
+		static bool EnsureUnityNuGetRegistry() {
+			string manifestPath = GetManifestPath();
 			if (!File.Exists(manifestPath)) {
-				Debug.LogError("[UnityReplayIntegration] manifest.json not found.");
-				return;
+				SetOperationMessage("manifest.json not found.", failed: true);
+				Debug.LogError($"[UnityReplayIntegration] {LastOperationMessage}");
+				return false;
 			}
 
 			string json = File.ReadAllText(manifestPath);
 
 			// Quick check – if the registry URL is already present, nothing to do.
 			if (json.Contains(UnityNuGetRegistryUrl)) {
-				Debug.Log("[UnityReplayIntegration] UnityNuGet scoped registry already present.");
-				return;
+				return true;
 			}
 
 			string registryBlock =
@@ -161,8 +192,9 @@ namespace UnityReplayIntegration.Editor {
 				// Insert the new entry before the closing ] of the array.
 				int closeIdx = FindScopedRegistriesArrayClose(json);
 				if (closeIdx < 0) {
-					Debug.LogError("[UnityReplayIntegration] Failed to parse scopedRegistries in manifest.json.");
-					return;
+					SetOperationMessage("Failed to parse scopedRegistries in manifest.json.", failed: true);
+					Debug.LogError($"[UnityReplayIntegration] {LastOperationMessage}");
+					return false;
 				}
 				// Check if array already has entries (need a comma separator).
 				string before = json.Substring(0, closeIdx).TrimEnd();
@@ -172,8 +204,9 @@ namespace UnityReplayIntegration.Editor {
 				// No scopedRegistries key at all – inject it before "dependencies".
 				int depsIdx = json.IndexOf("\"dependencies\"");
 				if (depsIdx < 0) {
-					Debug.LogError("[UnityReplayIntegration] Failed to find \"dependencies\" key in manifest.json.");
-					return;
+					SetOperationMessage("Failed to find \"dependencies\" key in manifest.json.", failed: true);
+					Debug.LogError($"[UnityReplayIntegration] {LastOperationMessage}");
+					return false;
 				}
 				string scopedBlock =
 					"\"scopedRegistries\": [\n" +
@@ -183,10 +216,17 @@ namespace UnityReplayIntegration.Editor {
 			}
 
 			File.WriteAllText(manifestPath, json);
-			Debug.Log("[UnityReplayIntegration] UnityNuGet scoped registry added to manifest.json.");
+			SetOperationMessage("UnityNuGet scoped registry added to manifest.json.");
+			Debug.Log($"[UnityReplayIntegration] {LastOperationMessage}");
 
 			// Trigger UPM to re-read the manifest.
+			RequestEditorRefresh();
 			Client.Resolve();
+			return true;
+		}
+
+		static string GetManifestPath() {
+			return Path.GetFullPath(Path.Combine(Application.dataPath, "../Packages/manifest.json"));
 		}
 
 		/// <summary>Returns the index of the closing ] of the scopedRegistries array, or -1 on failure.</summary>
@@ -210,23 +250,50 @@ namespace UnityReplayIntegration.Editor {
 		static void ProcessInstallQueue() {
 			if (_currentAddRequest != null) {
 				if (!_currentAddRequest.IsCompleted) return;
-				if (_currentAddRequest.Status == StatusCode.Failure)
-					Debug.LogError($"[UnityReplayIntegration] Failed to install package: {_currentAddRequest.Error.message}");
-				else
-					Debug.Log($"[UnityReplayIntegration] Package installed: {_currentAddRequest.Result?.name}");
+				if (_currentAddRequest.Status == StatusCode.Failure) {
+					SetOperationMessage($"Failed to install package: {_currentAddRequest.Error.message}", failed: true);
+					Debug.LogError($"[UnityReplayIntegration] {LastOperationMessage}");
+				} else {
+					SetOperationMessage($"Package installed: {_currentAddRequest.Result?.name}");
+					Debug.Log($"[UnityReplayIntegration] {LastOperationMessage}");
+					RequestEditorRefresh();
+				}
+
 				_currentAddRequest = null;
+				_currentInstallUrl = null;
+				NotifyStateChanged();
 			}
 
 			if (_installQueue == null || _installQueue.Count == 0) {
 				EditorApplication.update -= ProcessInstallQueue;
 				_installQueue = null;
-				Debug.Log("[UnityReplayIntegration] Dependency installation complete. Unity will recompile.");
+				RequestEditorRefresh();
+				RefreshInstalledPackages();
+				Debug.Log("[UnityReplayIntegration] Dependency installation complete. Requested editor refresh.");
 				return;
 			}
 
-			string nextUrl = _installQueue.Dequeue();
-			Debug.Log($"[UnityReplayIntegration] Installing: {nextUrl}");
-			_currentAddRequest = Client.Add(nextUrl);
+			_currentInstallUrl = _installQueue.Dequeue();
+			SetOperationMessage($"Installing: {_currentInstallUrl}");
+			Debug.Log($"[UnityReplayIntegration] {LastOperationMessage}");
+			_currentAddRequest = Client.Add(_currentInstallUrl);
+			NotifyStateChanged();
+		}
+
+		static void RequestEditorRefresh() {
+			AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+			EditorApplication.QueuePlayerLoopUpdate();
+			UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+		}
+
+		static void SetOperationMessage(string message, bool failed = false) {
+			LastOperationMessage = message;
+			LastOperationFailed = failed;
+			NotifyStateChanged();
+		}
+
+		static void NotifyStateChanged() {
+			StateChanged?.Invoke();
 		}
 	}
 }

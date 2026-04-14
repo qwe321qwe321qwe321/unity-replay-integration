@@ -48,6 +48,14 @@ namespace UnityReplayIntegration.Editor {
 				);
 			}
 
+			EditorGUILayout.HelpBox(
+				"Known issue: after installing InstantReplay and its org.nuget dependencies, Unity may show missing signature or unsigned package warnings. " +
+				"This is usually caused by the package source being a Git dependency and UnityNuGet/OpenUPM-based registry packages rather than a Unity-signed registry package. " +
+				"If the packages resolve and compile successfully, these warnings are typically non-blocking.\n\n" +
+				"Reference: https://github.com/bdovaz/UnityNuGet/issues/636",
+				MessageType.Info
+			);
+
 			using (new EditorGUILayout.HorizontalScope()) {
 				using (new EditorGUI.DisabledScope(isInstalling)) {
 					if (GUILayout.Button("Refresh Status"))
@@ -64,21 +72,21 @@ namespace UnityReplayIntegration.Editor {
 			EditorGUILayout.LabelField("Required", EditorStyles.boldLabel);
 			DrawDependencyStatus(
 				"UnityNuGet Scoped Registry",
-				"Required so InstantReplay can resolve its org.nuget dependencies.",
+				"Required so InstantReplay can resolve its org.nuget dependencies. Unity may show missing signature warnings for packages fetched from this source.",
 				UnityReplayIntegrationDependencyInstaller.HasUnityNuGetRegistryConfigured(),
 				isInstalling,
 				UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies
 			);
 			DrawDependencyStatus(
 				"InstantReplay Dependencies",
-				"Provides the package dependencies required by InstantReplay.",
+				"Provides the package dependencies required by InstantReplay, including org.nuget packages that may trigger known signature warnings in newer Unity versions.",
 				UnityReplayIntegrationDependencyInstaller.IsPackageInstalled(UnityReplayIntegrationDependencyInstaller.InstantReplayDepsPackageId),
 				isInstalling,
 				UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies
 			);
 			DrawDependencyStatus(
 				"InstantReplay",
-				"Core replay recording package used by Unity Replay Integration.",
+				"Core replay recording package used by Unity Replay Integration. Installed via Git URL, so Unity may report it as unsigned depending on editor version.",
 				UnityReplayIntegrationDependencyInstaller.IsPackageInstalled(UnityReplayIntegrationDependencyInstaller.InstantReplayPackageId),
 				isInstalling,
 				UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies

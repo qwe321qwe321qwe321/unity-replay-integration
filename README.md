@@ -49,6 +49,21 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 
 第一次載入 editor 時，若缺少必要或選用依賴，package 會主動跳出安裝提示，引導一鍵完成相依套件安裝。
 
+### 已知警告：missing signature / unsigned package
+
+安裝 `InstantReplay` 與其必要依賴後，在部分較新的 Unity 版本中，Console 可能會出現 `missing signature`、`no signature` 或 `unsigned package` 類型的警告。
+
+這通常不是此 package 安裝失敗，而是因為目前相依來源包含：
+
+- 透過 Git URL 安裝的 `jp.co.cyberagent.instant-replay`
+- 透過 UnityNuGet / OpenUPM registry 解析的 `org.nuget.*` 套件
+
+只要 package 能正常 resolve、編譯且在 Package Manager 中顯示為已安裝，這些警告通常可視為非阻塞的已知現象。
+
+相關討論可參考：
+
+- `UnityNuGet issue #636`: <https://github.com/bdovaz/UnityNuGet/issues/636>
+
 ## 快速開始
 
 1. 在場景中放入一個掛有 `MediaAssetCollectingSystem` 的物件。
@@ -147,6 +162,7 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - 若尚未錄到有效內容，匯出影片可能沒有輸出檔案
 - Discord 功能只有在有安裝 `com.pedev.unity-discord-webhook` 時才會生效
 - async API 只有在有安裝 `com.cysharp.unitask` 時才可使用
+- `InstantReplay` 與其 `org.nuget.*` 依賴在部分 Unity 版本中可能顯示 `missing signature` / `unsigned package` 警告；若套件能正常 resolve 與編譯，通常不影響使用
 
 ## License
 

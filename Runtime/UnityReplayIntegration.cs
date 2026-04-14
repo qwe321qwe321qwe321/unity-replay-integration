@@ -31,36 +31,55 @@ namespace UnityReplayIntegration {
 		[Header("Recording")]
 		[Tooltip("Select a quality preset to auto-fill resolution, frame rate, and bitrate. Use Custom to set them individually.")]
 		[SerializeField] private VideoQualityPreset qualityPreset = VideoQualityPreset.HD30;
+		[Tooltip("Recording width in pixels. Overridden by the quality preset unless Custom is selected.")]
 		[SerializeField, Range(64, 3840)] private int recordingWidth = 1280;
+		[Tooltip("Recording height in pixels. Overridden by the quality preset unless Custom is selected.")]
 		[SerializeField, Range(64, 2160)] private int recordingHeight = 720;
+		[Tooltip("Target frames per second for the recording. Overridden by the quality preset unless Custom is selected.")]
 		[SerializeField, Range(1, 120)] private int fps = 30;
 		[Tooltip("Target video bitrate in Kbps. Auto-filled by the quality preset; adjust freely when using Custom.")]
 		[SerializeField, Range(500, 50000)] private int recordingBitrateKbps = 2500;
+		[Tooltip("Maximum memory budget in MB for compressed in-memory frame storage.")]
 		[SerializeField, Range(1, 500)] private int maxMemoryUsageMb = 10;
+		[Tooltip("Number of raw (uncompressed) frame buffers held before compression. Higher values smooth bursty frame delivery at the cost of memory.")]
 		[SerializeField, Range(1, 20)] private int maxNumberOfRawFrameBuffers = 4;
+		[Tooltip("When enabled, recording starts automatically on Awake. Disable to start recording manually via StartRecording().")]
 		[SerializeField] private bool startOnAwake = true;
 
 		[Header("Hotkeys")]
 #if ENABLE_INPUT_SYSTEM
+		[Tooltip("Keyboard key that triggers video export at runtime.")]
 		[SerializeField] private UnityEngine.InputSystem.Key exportVideoHotkey = UnityEngine.InputSystem.Key.F9;
+		[Tooltip("Keyboard key that captures and saves a screenshot at runtime.")]
 		[SerializeField] private UnityEngine.InputSystem.Key captureScreenshotHotkey = UnityEngine.InputSystem.Key.F10;
 #else
+		[Tooltip("Keyboard key that triggers video export at runtime.")]
 		[SerializeField] private KeyCode exportVideoHotkey = KeyCode.F9;
+		[Tooltip("Keyboard key that captures and saves a screenshot at runtime.")]
 		[SerializeField] private KeyCode captureScreenshotHotkey = KeyCode.F10;
 #endif
 
 		[Header("Output")]
-		[Tooltip("Directory where videos and screenshots are saved. Defaults to Application.persistentDataPath if empty.")]
+		[Tooltip("Directory where videos and screenshots are saved. Leave empty to use Application.persistentDataPath. Absolute paths are recommended for cross-platform compatibility.")]
 		[SerializeField] private string outputPath = "";
 
 		[Header("Discord Webhook (requires com.pedev.unity-discord-webhook)")]
+		[Tooltip("When enabled, exported videos and screenshots are automatically uploaded to the configured Discord webhook.")]
 		[SerializeField] private bool discordWebhookEnabled = false;
+		[Tooltip("Full Discord webhook URL. Create one in Discord under Server Settings → Integrations → Webhooks.")]
 		[SerializeField] private string discordWebhookUrl = "";
+		[Tooltip("Type of the target Discord channel. Use Forum for forum channels that require a thread title.")]
 		[SerializeField] private ReplayDiscordChannelType discordChannelType = ReplayDiscordChannelType.TextChannel;
-		[Tooltip("Thread title for Forum channel type. Supports {TIME} placeholder.")]
-		[SerializeField] private string discordForumThreadTitle = "Game Clip - {TIME}";
-		[Tooltip("Message content. Supports {TIME} placeholder (formats to yyyy-MM-dd HH:mm:ss).")]
-		[SerializeField] private string discordContent = "Captured at {TIME}";
+		[Tooltip("Thread title for Forum channel type. Supports {TIME}, {SIZE}, and {LENGTH} placeholders.")]
+		[SerializeField] private string discordForumThreadTitle = "Game Clip - {TIME} ({SIZE} / {LENGTH})";
+		[Tooltip("Message content. Supports {TIME} (yyyy-MM-dd HH:mm:ss), {SIZE} (file size in MB), and {LENGTH} (video duration) placeholders.")]
+		[SerializeField] private string discordContent = "Captured at {TIME} ({SIZE} / {LENGTH})";
+		[Tooltip("Maximum file size in MB for a single Discord upload. Files larger than this will be handled according to the Auto Split Video setting. Set to 0 to disable the size check.")]
+		[SerializeField, Range(0, 500)] private int discordUploadLimitMb = 10;
+		[Tooltip("When enabled, videos that exceed the upload limit are automatically split into playable segments via FFmpeg. When disabled (or when FFmpeg is unavailable), the file is uploaded as a zip archive instead. If the zip is also too large the upload fails.")]
+		[SerializeField] private bool discordAutoSplitVideo = false;
+		[Tooltip("Path to the ffmpeg executable. Leave empty to use FFmpeg from the system PATH. Use StreamingAssets:/ffmpeg.exe for a path inside StreamingAssets (build-safe). Paths inside the project folder are stored as relative paths (Editor-only).")]
+		[SerializeField] private string discordFfmpegPath = "";
 
 		#endregion
 
@@ -77,6 +96,19 @@ namespace UnityReplayIntegration {
 		public ReplayDiscordChannelType DiscordChannelType => discordChannelType;
 		public string DiscordForumThreadTitle => discordForumThreadTitle;
 		public string DiscordContent => discordContent;
+		/// <summary>Upload size limit in bytes. Returns 0 when the size check is disabled.</summary>
+		public long DiscordUploadLimitBytes => discordUploadLimitMb > 0 ? (long)discordUploadLimitMb * 1024 * 1024 : 0;
+		public bool DiscordAutoSplitVideo => discordAutoSplitVideo;
+		public string DiscordFfmpegPath {
+			get {
+				const string k_Prefix = "StreamingAssets:/";
+				if (!string.IsNullOrEmpty(discordFfmpegPath) && discordFfmpegPath.StartsWith(k_Prefix)) {
+					return Path.Combine(Application.streamingAssetsPath,
+						discordFfmpegPath.Substring(k_Prefix.Length).Replace('/', Path.DirectorySeparatorChar));
+				}
+				return discordFfmpegPath;
+			}
+		}
 
 		public bool ShouldSendToDiscord() =>
 			discordWebhookEnabled

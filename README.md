@@ -18,6 +18,10 @@
 - 可指定輸出資料夾，未指定時使用 `Application.persistentDataPath`
 - 內建 Editor 相依性檢查，首次載入時自動提示安裝必要與選用套件
 - 若專案有安裝 `UniTask`，可搭配額外 async API 使用
+- Discord 上傳大小限制檢查，可依 Discord 方案設定
+- 超過大小限制時，可啟用 **自動 FFmpeg 分段上傳**：影片以 `-c copy` 無損分割為多個可獨立播放的 MP4，依序分訊息上傳
+- FFmpeg 不可用或分段失敗時，自動 fallback 為 zip 壓縮上傳；zip 也超過限制則回報錯誤
+- 支援自訂 FFmpeg 執行檔路徑，支援 `StreamingAssets:/` 前綴（build-safe）或系統 PATH
 
 ## 相依套件
 
@@ -66,7 +70,7 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 
 ## 快速開始
 
-1. 在場景中放入一個掛有 `MediaAssetCollectingSystem` 的物件。
+1. 在場景中放入一個掛有 `UnityReplayIntegration` 的物件。
 2. 視需求設定錄影品質、熱鍵、輸出路徑與 Discord Webhook。
 3. 若 `Start On Awake` 開啟，遊戲啟動後會自動開始背景錄影。
 4. 執行時可透過熱鍵匯出影片或擷取截圖。
@@ -91,7 +95,7 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - `Max Memory Usage Mb`
   壓縮影格最大記憶體使用量
 - `Max Number Of Raw Frame Buffers`
-  Raw frame buffer 上限
+  Raw frame buffer 上限，數值越高越能平滑突發影格，但會消耗更多記憶體
 - `Start On Awake`
   是否在啟動時自動開始錄影
 
@@ -105,22 +109,32 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 ### Output
 
 - `Output Path`
-  輸出資料夾，空字串時使用 `Application.persistentDataPath`
+  輸出資料夾，空字串時使用 `Application.persistentDataPath`；建議使用絕對路徑以確保跨平台相容性
 
 ### Discord Webhook
 
 - `Discord Webhook Enabled`
   是否啟用 Discord 上傳
 - `Discord Webhook Url`
-  Discord Webhook 位址
+  Discord Webhook 位址（在 Discord 伺服器設定 → 整合 → Webhooks 建立）
 - `Discord Channel Type`
   支援 `TextChannel` 與 `Forum`
 - `Discord Forum Thread Title`
-  Forum 模式下使用的 thread title，支援 `{TIME}` 佔位符
+  Forum 模式下使用的 thread title，支援 `{TIME}`、`{SIZE}`、`{LENGTH}` 佔位符
 - `Discord Content`
-  訊息內容，支援 `{TIME}` 佔位符
+  訊息內容，支援 `{TIME}`、`{SIZE}`、`{LENGTH}` 佔位符
+- `Discord Upload Limit Mb`
+  單次上傳的大小上限（MB）；超過此限制時依 Auto Split Video 設定處理。設為 `0` 停用大小檢查。Discord 免費版：25 MB、Nitro：500 MB
+- `Discord Auto Split Video`
+  啟用時，超過大小限制的影片會透過 FFmpeg 自動分段（`-c copy` 無損切割），每段作為獨立訊息上傳。停用時跳過 FFmpeg，直接嘗試 zip 壓縮上傳
+- `Discord Ffmpeg Path`
+  FFmpeg 執行檔路徑，空白時使用系統 PATH。`StreamingAssets:/ffmpeg.exe` 會在執行時解析為正確的 StreamingAssets 路徑（build-safe）。專案資料夾內的路徑以相對路徑儲存（僅限 Editor）。僅在 Auto Split Video 啟用時生效
 
-`{TIME}` 會被格式化為 `yyyy-MM-dd HH:mm:ss`。
+佔位符說明：
+
+- `{TIME}` — 格式化為 `yyyy-MM-dd HH:mm:ss`
+- `{SIZE}` — 檔案大小（例如 `12.34 MB`）
+- `{LENGTH}` — 影片長度（例如 `1m10s`）
 
 ## 執行流程
 
@@ -128,11 +142,15 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - 匯出影片時會停止目前 session，輸出完成後自動重新開始錄影
 - 截圖會在 `WaitForEndOfFrame` 後擷取，儲存成 `png`
 - 若 Discord 上傳啟用，輸出完成後會自動呼叫 webhook
-- 當 Discord 直接上傳失敗時，會再嘗試以 zip 壓縮後重新上傳一次
+- **大小限制流程（影片）**：
+  1. 檔案大小 ≤ 上傳限制：直接上傳
+  2. 檔案大小 > 上傳限制，且 Auto Split Video 啟用：以 FFmpeg 分段後依序上傳各段；FFmpeg 失敗或不可用時 fallback 到 zip 上傳
+  3. 檔案大小 > 上傳限制，且 Auto Split Video 停用：嘗試 zip 壓縮後上傳
+  4. zip 也超過限制：回報錯誤
 
 ## 程式 API
 
-主要入口為 `MediaAssetCollectingSystem.Instance`。
+主要入口為 `UnityReplayIntegration.Instance`。
 
 常用 API：
 
@@ -157,12 +175,13 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 
 ## 注意事項
 
-- 此 package 採 Singleton 設計，場景中應只保留一個 `MediaAssetCollectingSystem`
+- 此 package 採 Singleton 設計，場景中應只保留一個 `UnityReplayIntegration`
 - 物件會在執行時 `DontDestroyOnLoad`
 - 若尚未錄到有效內容，匯出影片可能沒有輸出檔案
 - Discord 功能只有在有安裝 `com.pedev.unity-discord-webhook` 時才會生效
 - async API 只有在有安裝 `com.cysharp.unitask` 時才可使用
 - `InstantReplay` 與其 `org.nuget.*` 依賴在部分 Unity 版本中可能顯示 `missing signature` / `unsigned package` 警告；若套件能正常 resolve 與編譯，通常不影響使用
+- FFmpeg 分段上傳需要 FFmpeg 已安裝並可從系統 PATH 存取，或在 Inspector 中指定執行檔路徑
 
 ## License
 

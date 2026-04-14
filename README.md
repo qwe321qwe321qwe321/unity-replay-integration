@@ -124,7 +124,7 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - `Discord Content`
   訊息內容，支援 `{TIME}`、`{SIZE}`、`{LENGTH}` 佔位符
 - `Discord Upload Limit Mb`
-  單次上傳的大小上限（MB）；超過此限制時依 Auto Split Video 設定處理。設為 `0` 停用大小檢查。Discord 免費版：25 MB、Nitro：500 MB
+  單次上傳的大小上限（MB）；超過此限制時依 Auto Split Video 設定處理。設為 `0` 停用大小檢查。
 - `Discord Auto Split Video`
   啟用時，超過大小限制的影片會透過 FFmpeg 自動分段（`-c copy` 無損切割），每段作為獨立訊息上傳。停用時跳過 FFmpeg，直接嘗試 zip 壓縮上傳
 - `Discord Ffmpeg Path`

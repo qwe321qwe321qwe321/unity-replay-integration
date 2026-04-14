@@ -1,0 +1,25 @@
+{
+    "name": "UnityReplayIntegration.UniTask",
+    "rootNamespace": "UnityReplayIntegration",
+    "references": [
+        "UnityReplayIntegration.Runtime",
+        "UniTask"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITASK_PRESENT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.cysharp.unitask",
+            "expression": "",
+            "define": "UNITASK_PRESENT"
+        }
+    ],
+    "noEngineReferences": false
+}

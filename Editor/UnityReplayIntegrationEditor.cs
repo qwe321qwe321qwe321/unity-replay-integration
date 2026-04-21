@@ -14,6 +14,7 @@ namespace UnityReplayIntegration.Editor {
 		SerializedProperty _maxNumberOfRawFrameBuffers;
 		SerializedProperty _startOnAwake;
 		SerializedProperty _recordAudio;
+		SerializedProperty _autoDetectAudioListenerOnTick;
 		SerializedProperty _exportVideoHotkey;
 		SerializedProperty _captureScreenshotHotkey;
 		SerializedProperty _outputPath;
@@ -34,9 +35,10 @@ namespace UnityReplayIntegration.Editor {
 			_recordingBitrateKbps       = serializedObject.FindProperty("recordingBitrateKbps");
 			_maxMemoryUsageMb           = serializedObject.FindProperty("maxMemoryUsageMb");
 			_maxNumberOfRawFrameBuffers = serializedObject.FindProperty("maxNumberOfRawFrameBuffers");
-			_startOnAwake               = serializedObject.FindProperty("startOnAwake");
-			_recordAudio                = serializedObject.FindProperty("recordAudio");
-			_exportVideoHotkey          = serializedObject.FindProperty("exportVideoHotkey");
+			_startOnAwake                    = serializedObject.FindProperty("startOnAwake");
+			_recordAudio                     = serializedObject.FindProperty("recordAudio");
+			_autoDetectAudioListenerOnTick   = serializedObject.FindProperty("autoDetectAudioListenerOnTick");
+			_exportVideoHotkey               = serializedObject.FindProperty("exportVideoHotkey");
 			_captureScreenshotHotkey    = serializedObject.FindProperty("captureScreenshotHotkey");
 			_outputPath                 = serializedObject.FindProperty("outputPath");
 			_discordWebhookEnabled      = serializedObject.FindProperty("discordWebhookEnabled");
@@ -68,6 +70,12 @@ namespace UnityReplayIntegration.Editor {
 			EditorGUILayout.PropertyField(_maxNumberOfRawFrameBuffers);
 			EditorGUILayout.PropertyField(_startOnAwake);
 			EditorGUILayout.PropertyField(_recordAudio);
+
+			EditorGUI.BeginDisabledGroup(!_recordAudio.boolValue);
+			EditorGUI.indentLevel++;
+			EditorGUILayout.PropertyField(_autoDetectAudioListenerOnTick);
+			EditorGUI.indentLevel--;
+			EditorGUI.EndDisabledGroup();
 
 			EditorGUILayout.Space();
 

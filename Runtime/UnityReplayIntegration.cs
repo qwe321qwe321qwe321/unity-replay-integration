@@ -47,6 +47,8 @@ namespace UnityReplayIntegration {
 		[SerializeField] private bool startOnAwake = true;
 		[Tooltip("When disabled, audio is not captured and an AudioListener is not required in the scene.")]
 		[SerializeField] private bool recordAudio = true;
+		[Tooltip("When enabled, the audio capture system automatically scans the scene for an AudioListener each frame if the current one is lost. Disable to avoid the per-frame FindFirstObjectByType overhead; call RefreshAudioListener() or SetAudioListener() manually instead.")]
+		[SerializeField] private bool autoDetectAudioListenerOnTick = false;
 
 		[Header("Hotkeys")]
 #if ENABLE_INPUT_SYSTEM
@@ -87,6 +89,7 @@ namespace UnityReplayIntegration {
 
 #if INSTANT_REPLAY_PRESENT
 		private RealtimeInstantReplaySession _currentSession;
+		private AdaptiveAudioSampleProvider _adaptiveProvider;
 		private volatile bool _pendingSessionRestart;
 		private bool _isExporting;
 #endif
@@ -141,6 +144,11 @@ namespace UnityReplayIntegration {
 			Instance = this;
 			DontDestroyOnLoad(gameObject);
 
+#if INSTANT_REPLAY_PRESENT
+			if (recordAudio) {
+				_adaptiveProvider = new AdaptiveAudioSampleProvider(autoDetectAudioListenerOnTick);
+			}
+#endif
 			if (startOnAwake) {
 				StartRecording();
 			}
@@ -150,10 +158,17 @@ namespace UnityReplayIntegration {
 			if (Instance == this) {
 				Instance = null;
 			}
+#if INSTANT_REPLAY_PRESENT
+			_adaptiveProvider?.Dispose();
+			_adaptiveProvider = null;
+#endif
 			DisposeCurrentSession();
 		}
 
 		private void Update() {
+#if INSTANT_REPLAY_PRESENT
+			_adaptiveProvider?.Tick();
+#endif
 			HandlePendingSessionRestart();
 			HandleHotkeys();
 		}
@@ -210,11 +225,6 @@ namespace UnityReplayIntegration {
 #if INSTANT_REPLAY_PRESENT
 			if (_currentSession != null) return;
 
-			if (recordAudio && FindFirstObjectByType<AudioListener>() == null) {
-				Debug.LogWarning("[UnityReplayIntegration] No AudioListener found in the scene. Recording aborted.");
-				return;
-			}
-
 			var sessionBox = new SessionBox();
 			sessionBox.Session = _currentSession = new RealtimeInstantReplaySession(
 				new RealtimeEncodingOptions {
@@ -235,17 +245,11 @@ namespace UnityReplayIntegration {
 					VideoInputQueueSize = 5,
 					AudioInputQueueSizeSeconds = 1.0,
 				},
-				audioSampleProvider: recordAudio ? null : NullAudioSampleProvider.Instance,
-				disposeAudioSampleProvider: recordAudio,
+				audioSampleProvider: recordAudio ? _adaptiveProvider : NullAudioSampleProvider.Instance,
+				disposeAudioSampleProvider: false,
 				onException: exception => {
 					Debug.LogException(exception);
 					if (sessionBox.Session != _currentSession) return;
-					// Don't restart if there's no AudioListener — retrying would throw the same exception.
-					if (recordAudio && FindFirstObjectByType<AudioListener>() == null) {
-						Debug.LogWarning("[UnityReplayIntegration] Recording stopped: no AudioListener found in scene.");
-						return;
-					}
-					// Signal main thread to restart. Handled in Update via _pendingSessionRestart.
 					_pendingSessionRestart = true;
 				}
 			);
@@ -274,6 +278,31 @@ namespace UnityReplayIntegration {
 		public void ResumeRecording() {
 #if INSTANT_REPLAY_PRESENT
 			_currentSession?.Resume();
+#endif
+		}
+
+		/// <summary>
+		/// Immediately switches audio capture to the specified <see cref="AudioListener"/>.
+		/// Use this when the active listener changes during gameplay (e.g. camera swap) and you want
+		/// to control exactly which listener is recorded.
+		/// Pass <c>null</c> to stop capture; auto-detection resumes on the next frame.
+		/// No-op when audio recording is disabled.
+		/// </summary>
+		public void SetAudioListener(AudioListener listener) {
+#if INSTANT_REPLAY_PRESENT
+			_adaptiveProvider?.SetAudioListener(listener);
+#endif
+		}
+
+		/// <summary>
+		/// Forces an immediate re-scan for the active <see cref="AudioListener"/> in the scene.
+		/// Call this after a scene transition or any time the active listener may have changed
+		/// and you don't want to wait for the next automatic detection cycle.
+		/// No-op when audio recording is disabled.
+		/// </summary>
+		public void RefreshAudioListener() {
+#if INSTANT_REPLAY_PRESENT
+			_adaptiveProvider?.RefreshAudioListener();
 #endif
 		}
 

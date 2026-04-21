@@ -98,6 +98,10 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
   Raw frame buffer 上限，數值越高越能平滑突發影格，但會消耗更多記憶體
 - `Start On Awake`
   是否在啟動時自動開始錄影
+- `Record Audio`
+  是否擷取音訊；停用時不需場景中有 `AudioListener`
+- `Auto Detect Audio Listener On Tick`
+  （僅在 Record Audio 啟用時有效）啟用時每幀自動掃描場景中的 `AudioListener`，適合 listener 會動態變更的專案；停用時需手動呼叫 `RefreshAudioListener()` 或 `SetAudioListener()` 以節省每幀 `FindFirstObjectByType` 的效能開銷
 
 ### Hotkeys
 
@@ -160,6 +164,8 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - `ResumeRecording()`
 - `TriggerExportVideo(Action<string> onComplete = null)`
 - `TriggerCaptureScreenshot(Action<string> onComplete = null)`
+- `SetAudioListener(AudioListener listener)` — 立即切換音訊擷取目標；傳入 `null` 可暫停擷取並等待下一次自動偵測
+- `RefreshAudioListener()` — 強制立即重新掃描場景中的 `AudioListener`，適合 scene transition 後手動觸發
 
 狀態查詢：
 

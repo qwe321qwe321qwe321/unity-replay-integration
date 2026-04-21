@@ -67,6 +67,18 @@ namespace UnityReplayIntegration.Editor {
 			EditorGUI.EndDisabledGroup();
 
 			EditorGUILayout.PropertyField(_maxMemoryUsageMb);
+			{
+				long videoBytesPerSec = _recordingBitrateKbps.intValue * 1000L / 8;
+				const long audioBytesPerSec = 128000L / 8;
+				float estimatedSec = _maxMemoryUsageMb.intValue * 1024f * 1024f / (videoBytesPerSec + audioBytesPerSec);
+				string duration = estimatedSec >= 60f
+					? $"{(int)(estimatedSec / 60)}m {(int)(estimatedSec % 60)}s"
+					: $"{(int)estimatedSec}s";
+				EditorGUILayout.HelpBox(
+					$"Estimated max replay length: ~{duration} (upper bound; actual may be longer due to compression).",
+					MessageType.Info
+				);
+			}
 			EditorGUILayout.PropertyField(_maxNumberOfRawFrameBuffers);
 			EditorGUILayout.PropertyField(_startOnAwake);
 			EditorGUILayout.PropertyField(_recordAudio);

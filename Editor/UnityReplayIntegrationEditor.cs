@@ -98,7 +98,9 @@ namespace UnityReplayIntegration.Editor {
 				"Available variables:\n"
 				+ "  {TIME}    — Date and time (yyyy-MM-dd HH:mm:ss)\n"
 				+ "  {SIZE}    — File size in MB (e.g. 12.34 MB)\n"
-				+ "  {LENGTH}  — Video duration (e.g. 1m10s)",
+				+ "  {LENGTH}  — Video duration (e.g. 1m10s)\n"
+				+ "  {FPS}     — Frame rate (e.g. 60fps)\n"
+				+ "  {RES}     — Resolution (e.g. 1920x1080)",
 				MessageType.Info
 			);
 			EditorGUILayout.PropertyField(_discordUploadLimitMb);

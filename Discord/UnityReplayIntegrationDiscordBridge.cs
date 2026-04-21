@@ -207,8 +207,8 @@ namespace UnityReplayIntegration {
 		// ── Helpers ───────────────────────────────────────────────────────────
 
 		static WebhookBuilder BuildWebhookBuilder(UnityReplayIntegration system, string filePath = null, double? durationSec = null, string contentOverride = null, string threadTitleOverride = null) {
-			string content = contentOverride ?? FormatTemplate(system.DiscordContent, filePath, durationSec);
-			string threadTitle = threadTitleOverride ?? FormatTemplate(system.DiscordForumThreadTitle, filePath, durationSec);
+			string content = contentOverride ?? FormatTemplate(system.DiscordContent, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight);
+			string threadTitle = threadTitleOverride ?? FormatTemplate(system.DiscordForumThreadTitle, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight);
 			// ReplayDiscordChannelType values intentionally match DiscordWebhook.ChannelType.
 			if ((ChannelType)(int)system.DiscordChannelType == ChannelType.Forum) {
 				return WebhookBuilder.CreateForum(system.DiscordWebhookUrl)
@@ -219,7 +219,7 @@ namespace UnityReplayIntegration {
 				.SetContent(content);
 		}
 
-		static string FormatTemplate(string template, string filePath = null, double? durationSec = null) {
+		static string FormatTemplate(string template, string filePath = null, double? durationSec = null, int fps = 0, int width = 0, int height = 0) {
 			string result = template.Replace("{TIME}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
 			if (result.Contains("{SIZE}")) {
@@ -236,6 +236,14 @@ namespace UnityReplayIntegration {
 			if (result.Contains("{LENGTH}")) {
 				double? dur = durationSec ?? (filePath != null ? GetMp4DurationSeconds(filePath) : null);
 				result = result.Replace("{LENGTH}", dur.HasValue ? FormatDuration(dur.Value) : "?");
+			}
+
+			if (result.Contains("{FPS}")) {
+				result = result.Replace("{FPS}", fps > 0 ? $"{fps}fps" : "?");
+			}
+
+			if (result.Contains("{RES}")) {
+				result = result.Replace("{RES}", (width > 0 && height > 0) ? $"{width}x{height}" : "?");
 			}
 
 			return result;

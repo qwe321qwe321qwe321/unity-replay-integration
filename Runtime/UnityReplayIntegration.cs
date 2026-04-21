@@ -72,9 +72,9 @@ namespace UnityReplayIntegration {
 		[SerializeField] private string discordWebhookUrl = "";
 		[Tooltip("Type of the target Discord channel. Use Forum for forum channels that require a thread title.")]
 		[SerializeField] private ReplayDiscordChannelType discordChannelType = ReplayDiscordChannelType.TextChannel;
-		[Tooltip("Thread title for Forum channel type. Supports {TIME}, {SIZE}, and {LENGTH} placeholders.")]
+		[Tooltip("Thread title for Forum channel type. Supports {TIME}, {SIZE}, {LENGTH}, {FPS}, and {RES} placeholders.")]
 		[SerializeField] private string discordForumThreadTitle = "Game Clip - {TIME} ({SIZE} / {LENGTH})";
-		[Tooltip("Message content. Supports {TIME} (yyyy-MM-dd HH:mm:ss), {SIZE} (file size in MB), and {LENGTH} (video duration) placeholders.")]
+		[Tooltip("Message content. Supports {TIME} (yyyy-MM-dd HH:mm:ss), {SIZE} (file size in MB), {LENGTH} (video duration), {FPS} (e.g. 60fps), and {RES} (e.g. 1920x1080) placeholders.")]
 		[SerializeField] private string discordContent = "Captured at {TIME} ({SIZE} / {LENGTH})";
 		[Tooltip("Maximum file size in MB for a single Discord upload. Files larger than this will be handled according to the Auto Split Video setting. Set to 0 to disable the size check.")]
 		[SerializeField, Range(0, 500)] private int discordUploadLimitMb = 10;
@@ -98,6 +98,9 @@ namespace UnityReplayIntegration {
 		public ReplayDiscordChannelType DiscordChannelType => discordChannelType;
 		public string DiscordForumThreadTitle => discordForumThreadTitle;
 		public string DiscordContent => discordContent;
+		public int RecordingFps => fps;
+		public int RecordingWidth => recordingWidth;
+		public int RecordingHeight => recordingHeight;
 		/// <summary>Upload size limit in bytes. Returns 0 when the size check is disabled.</summary>
 		public long DiscordUploadLimitBytes => discordUploadLimitMb > 0 ? (long)discordUploadLimitMb * 1024 * 1024 : 0;
 		public bool DiscordAutoSplitVideo => discordAutoSplitVideo;

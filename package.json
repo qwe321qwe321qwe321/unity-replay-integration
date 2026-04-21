@@ -1,6 +1,6 @@
 {
   "name": "com.pedev.unity-replay-integration",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "displayName": "Unity Replay Integration",
   "description": "Background video recording via InstantReplay and screenshot capture, with optional Discord webhook upload and optional UniTask async API.",
   "license": "MIT",

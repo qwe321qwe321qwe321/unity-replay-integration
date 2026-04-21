@@ -156,9 +156,9 @@ namespace UnityReplayIntegration {
 				string partPath = partFiles[i];
 				string partLabel = $"[{i + 1}/{total}]";
 				string content = i == 0
-					? $"{partLabel} {FormatTemplate(system.DiscordContent, filePath, durationSec)}"
+					? $"{partLabel} {FormatTemplate(system.DiscordContent, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight)}"
 					: partLabel;
-				string threadTitle = $"{FormatTemplate(system.DiscordForumThreadTitle, filePath, durationSec)} {partLabel}";
+				string threadTitle = $"{FormatTemplate(system.DiscordForumThreadTitle, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight)} {partLabel}";
 
 				WebhookResponseResult result = default;
 				yield return BuildWebhookBuilder(system, contentOverride: content, threadTitleOverride: threadTitle)

@@ -45,6 +45,8 @@ namespace UnityReplayIntegration {
 		[SerializeField, Range(1, 20)] private int maxNumberOfRawFrameBuffers = 4;
 		[Tooltip("When enabled, recording starts automatically on Awake. Disable to start recording manually via StartRecording().")]
 		[SerializeField] private bool startOnAwake = true;
+		[Tooltip("When disabled, audio is not captured and an AudioListener is not required in the scene.")]
+		[SerializeField] private bool recordAudio = true;
 
 		[Header("Hotkeys")]
 #if ENABLE_INPUT_SYSTEM
@@ -205,6 +207,11 @@ namespace UnityReplayIntegration {
 #if INSTANT_REPLAY_PRESENT
 			if (_currentSession != null) return;
 
+			if (recordAudio && FindFirstObjectByType<AudioListener>() == null) {
+				Debug.LogWarning("[UnityReplayIntegration] No AudioListener found in the scene. Recording aborted.");
+				return;
+			}
+
 			var sessionBox = new SessionBox();
 			sessionBox.Session = _currentSession = new RealtimeInstantReplaySession(
 				new RealtimeEncodingOptions {
@@ -225,12 +232,18 @@ namespace UnityReplayIntegration {
 					VideoInputQueueSize = 5,
 					AudioInputQueueSizeSeconds = 1.0,
 				},
+				audioSampleProvider: recordAudio ? null : NullAudioSampleProvider.Instance,
+				disposeAudioSampleProvider: recordAudio,
 				onException: exception => {
 					Debug.LogException(exception);
-					// Signal main thread to restart. Handled in Update via _pendingSessionRestart.
-					if (sessionBox.Session == _currentSession) {
-						_pendingSessionRestart = true;
+					if (sessionBox.Session != _currentSession) return;
+					// Don't restart if there's no AudioListener — retrying would throw the same exception.
+					if (recordAudio && FindFirstObjectByType<AudioListener>() == null) {
+						Debug.LogWarning("[UnityReplayIntegration] Recording stopped: no AudioListener found in scene.");
+						return;
 					}
+					// Signal main thread to restart. Handled in Update via _pendingSessionRestart.
+					_pendingSessionRestart = true;
 				}
 			);
 			Debug.Log("[UnityReplayIntegration] Recording started.");

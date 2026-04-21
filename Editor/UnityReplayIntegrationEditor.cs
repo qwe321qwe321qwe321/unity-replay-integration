@@ -13,6 +13,7 @@ namespace UnityReplayIntegration.Editor {
 		SerializedProperty _maxMemoryUsageMb;
 		SerializedProperty _maxNumberOfRawFrameBuffers;
 		SerializedProperty _startOnAwake;
+		SerializedProperty _recordAudio;
 		SerializedProperty _exportVideoHotkey;
 		SerializedProperty _captureScreenshotHotkey;
 		SerializedProperty _outputPath;
@@ -34,6 +35,7 @@ namespace UnityReplayIntegration.Editor {
 			_maxMemoryUsageMb           = serializedObject.FindProperty("maxMemoryUsageMb");
 			_maxNumberOfRawFrameBuffers = serializedObject.FindProperty("maxNumberOfRawFrameBuffers");
 			_startOnAwake               = serializedObject.FindProperty("startOnAwake");
+			_recordAudio                = serializedObject.FindProperty("recordAudio");
 			_exportVideoHotkey          = serializedObject.FindProperty("exportVideoHotkey");
 			_captureScreenshotHotkey    = serializedObject.FindProperty("captureScreenshotHotkey");
 			_outputPath                 = serializedObject.FindProperty("outputPath");
@@ -65,6 +67,7 @@ namespace UnityReplayIntegration.Editor {
 			EditorGUILayout.PropertyField(_maxMemoryUsageMb);
 			EditorGUILayout.PropertyField(_maxNumberOfRawFrameBuffers);
 			EditorGUILayout.PropertyField(_startOnAwake);
+			EditorGUILayout.PropertyField(_recordAudio);
 
 			EditorGUILayout.Space();
 

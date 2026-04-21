@@ -1,6 +1,6 @@
 {
     "name": "UnityReplayIntegration.Editor",
-    "rootNamespace": "PEDev.UnityReplayIntegration.Editor",
+    "rootNamespace": "PeDev.UnityReplayIntegration.Editor",
     "references": [
         "GUID:90b6ebbbac8bc014cb7f0d910bc85a52"
     ],

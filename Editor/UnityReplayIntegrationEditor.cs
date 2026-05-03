@@ -26,6 +26,7 @@ namespace UnityReplayIntegration.Editor {
 		SerializedProperty _discordUploadLimitMb;
 		SerializedProperty _discordAutoSplitVideo;
 		SerializedProperty _discordFfmpegPath;
+		SerializedProperty _discordFfmpegPlatformPaths;
 
 		void OnEnable() {
 			_qualityPreset              = serializedObject.FindProperty("qualityPreset");
@@ -49,10 +50,20 @@ namespace UnityReplayIntegration.Editor {
 			_discordUploadLimitMb       = serializedObject.FindProperty("discordUploadLimitMb");
 			_discordAutoSplitVideo      = serializedObject.FindProperty("discordAutoSplitVideo");
 			_discordFfmpegPath          = serializedObject.FindProperty("discordFfmpegPath");
+			_discordFfmpegPlatformPaths = serializedObject.FindProperty("discordFfmpegPlatformPaths");
 		}
 
 		public override void OnInspectorGUI() {
 			serializedObject.Update();
+
+			if (ReplayIntegrationBuildSettings.ExcludeFromBuild) {
+				EditorGUILayout.HelpBox(
+					"This component is excluded from builds. \n" +
+					"Toggle this in Tools → Unity Replay Integration → Settings.",
+					MessageType.Info
+				);
+				EditorGUILayout.Space();
+			}
 
 			// ── Recording ────────────────────────────────────────────────
 			EditorGUILayout.PropertyField(_qualityPreset);
@@ -145,6 +156,7 @@ namespace UnityReplayIntegration.Editor {
 				}
 			}
 			EditorGUILayout.EndHorizontal();
+			EditorGUILayout.PropertyField(_discordFfmpegPlatformPaths, new GUIContent("FFmpeg Platform Overrides"), true);
 			EditorGUILayout.HelpBox(
 				"Leave empty to use FFmpeg from the system PATH.\n"
 				+ "Paths inside StreamingAssets are stored as StreamingAssets:/... and resolve correctly in builds.\n"

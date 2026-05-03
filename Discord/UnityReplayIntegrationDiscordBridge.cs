@@ -1,3 +1,4 @@
+#if UNITY_EDITOR || !UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -356,3 +357,4 @@ namespace UnityReplayIntegration {
 		}
 	}
 }
+#endif

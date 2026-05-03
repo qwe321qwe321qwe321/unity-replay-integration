@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 #if INSTANT_REPLAY_PRESENT
@@ -9,6 +10,7 @@ using UniEnc;
 using UnityEngine;
 
 namespace UnityReplayIntegration {
+#if UNITY_EDITOR || !UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD
 	/// <summary>
 	/// Singleton system for background video recording via InstantReplay and screenshot capture,
 	/// with optional Discord webhook upload. Drop the prefab into the scene to activate.
@@ -82,8 +84,10 @@ namespace UnityReplayIntegration {
 		[SerializeField, Range(0, 500)] private int discordUploadLimitMb = 10;
 		[Tooltip("When enabled, videos that exceed the upload limit are automatically split into playable segments via FFmpeg. When disabled (or when FFmpeg is unavailable), the file is uploaded as a zip archive instead. If the zip is also too large the upload fails.")]
 		[SerializeField] private bool discordAutoSplitVideo = false;
-		[Tooltip("Path to the ffmpeg executable. Leave empty to use FFmpeg from the system PATH. Use StreamingAssets:/ffmpeg.exe for a path inside StreamingAssets (build-safe). Paths inside the project folder are stored as relative paths (Editor-only).")]
+		[Tooltip("Default path to the ffmpeg executable. Leave empty to use FFmpeg from the system PATH. Use StreamingAssets:/ffmpeg.exe for a path inside StreamingAssets (build-safe). Paths inside the project folder are stored as relative paths (Editor-only). Used when no platform-specific override matches.")]
 		[SerializeField] private string discordFfmpegPath = "";
+		[Tooltip("Platform-specific overrides for the FFmpeg path. When the current runtime matches one of these entries, its path is used instead of the default. Empty paths are ignored (falls back to default).")]
+		[SerializeField] private List<ReplayFfmpegPlatformPath> discordFfmpegPlatformPaths = new List<ReplayFfmpegPlatformPath>();
 
 		#endregion
 
@@ -110,11 +114,38 @@ namespace UnityReplayIntegration {
 		public string DiscordFfmpegPath {
 			get {
 				const string k_Prefix = "StreamingAssets:/";
-				if (!string.IsNullOrEmpty(discordFfmpegPath) && discordFfmpegPath.StartsWith(k_Prefix)) {
+				string raw = ResolveFfmpegRawPath();
+				if (!string.IsNullOrEmpty(raw) && raw.StartsWith(k_Prefix)) {
 					return Path.Combine(Application.streamingAssetsPath,
-						discordFfmpegPath.Substring(k_Prefix.Length).Replace('/', Path.DirectorySeparatorChar));
+						raw.Substring(k_Prefix.Length).Replace('/', Path.DirectorySeparatorChar));
 				}
-				return discordFfmpegPath;
+				return raw;
+			}
+		}
+
+		private string ResolveFfmpegRawPath() {
+			if (discordFfmpegPlatformPaths != null && discordFfmpegPlatformPaths.Count > 0) {
+				if (TryGetCurrentFfmpegPlatform(out var current)) {
+					for (int i = 0; i < discordFfmpegPlatformPaths.Count; i++) {
+						var entry = discordFfmpegPlatformPaths[i];
+						if (entry.platform == current && !string.IsNullOrEmpty(entry.path)) {
+							return entry.path;
+						}
+					}
+				}
+			}
+			return discordFfmpegPath;
+		}
+
+		private static bool TryGetCurrentFfmpegPlatform(out ReplayFfmpegPlatform platform) {
+			switch (Application.platform) {
+				case RuntimePlatform.WindowsEditor: platform = ReplayFfmpegPlatform.WindowsEditor; return true;
+				case RuntimePlatform.WindowsPlayer: platform = ReplayFfmpegPlatform.WindowsBuild; return true;
+				case RuntimePlatform.OSXEditor:     platform = ReplayFfmpegPlatform.MacEditor;     return true;
+				case RuntimePlatform.OSXPlayer:     platform = ReplayFfmpegPlatform.MacBuild;      return true;
+				case RuntimePlatform.LinuxEditor:   platform = ReplayFfmpegPlatform.LinuxEditor;   return true;
+				case RuntimePlatform.LinuxPlayer:   platform = ReplayFfmpegPlatform.LinuxBuild;    return true;
+				default: platform = default; return false;
 			}
 		}
 
@@ -459,4 +490,31 @@ namespace UnityReplayIntegration {
 		}
 #endif
 	}
+#else
+	/// <summary>
+	/// Build-time stub. The UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD scripting define is set,
+	/// so this component self-destroys on Awake and all public API calls are no-ops.
+	/// User call sites continue to compile.
+	/// </summary>
+	public class UnityReplayIntegration : MonoBehaviour {
+		public static UnityReplayIntegration Instance => null;
+		public static Func<string, bool, IEnumerator> DiscordUploadHandler;
+
+		public bool IsRecording => false;
+		public bool IsPaused => false;
+
+		private void Awake() {
+			Destroy(this);
+		}
+
+		public void StartRecording() {}
+		public void StopRecording() {}
+		public void PauseRecording() {}
+		public void ResumeRecording() {}
+		public void SetAudioListener(AudioListener listener) {}
+		public void RefreshAudioListener() {}
+		public void TriggerExportVideo(Action<string> onComplete = null) { onComplete?.Invoke(null); }
+		public void TriggerCaptureScreenshot(Action<string> onComplete = null) { onComplete?.Invoke(null); }
+	}
+#endif
 }

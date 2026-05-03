@@ -38,6 +38,10 @@ namespace UnityReplayIntegration.Editor {
 		internal const string UniTaskPackageId = "com.cysharp.unitask";
 		const string UniTaskGitUrl             = "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask";
 
+		// SessionState key — survives domain reload but resets when the editor is closed,
+		// so the settings window auto-opens at most once per editor session.
+		const string AutoOpenedSessionKey = "UnityReplayIntegration.SettingsWindow.AutoOpened";
+
 		static ListRequest _listRequest;
 		static Queue<string> _installQueue;
 		static AddRequest _currentAddRequest;
@@ -57,7 +61,15 @@ namespace UnityReplayIntegration.Editor {
 			IsPackageInstalled(InstantReplayDepsPackageId);
 
 		static UnityReplayIntegrationDependencyInstaller() {
-			RefreshInstalledPackages(autoOpenWindowWhenRequiredMissing: true);
+			// Defer all UPM / window work until after domain reload finishes.
+			// Running it directly in the static constructor triggers
+			// "ScriptableSingleton already exists. Did you query the singleton in a constructor?"
+			// because EditorWindow.GetWindow internally touches ScriptableSingletons that
+			// are still being deserialized at this point.
+			EditorApplication.delayCall += () => {
+				bool autoOpen = !SessionState.GetBool(AutoOpenedSessionKey, false);
+				RefreshInstalledPackages(autoOpenWindowWhenRequiredMissing: autoOpen);
+			};
 		}
 
 		internal static bool IsPackageInstalled(string packageId) {
@@ -117,8 +129,12 @@ namespace UnityReplayIntegration.Editor {
 			_packageStateKnown = true;
 			NotifyStateChanged();
 
-			if (_autoOpenWindowAfterNextRefresh && !IsInstalling && !IsInstantReplayInstalled)
-				UnityReplayIntegrationDependencyWindow.OpenWindow();
+			if (_autoOpenWindowAfterNextRefresh && !IsInstalling && !IsInstantReplayInstalled) {
+				SessionState.SetBool(AutoOpenedSessionKey, true);
+				// delayCall again so GetWindow runs on the next editor tick rather than
+				// from inside EditorApplication.update, which is the safest time to open windows.
+				EditorApplication.delayCall += UnityReplayIntegrationSettingWindow.OpenWindow;
+			}
 
 			_autoOpenWindowAfterNextRefresh = false;
 		}

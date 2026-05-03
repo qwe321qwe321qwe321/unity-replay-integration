@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-05-03
+### Added
+- `Tools → Unity Replay Integration → Settings` 視窗：合併原先的 Dependencies 視窗，並新增 Build 設定區塊。
+- Build 設定：可透過 `UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD` scripting define 將整個 Replay Integration（含 Discord bridge）從 build 中排除。
+- `ReplayFfmpegPlatformPath` 與 `discordFfmpegPlatformPaths`：可針對不同平台（RuntimePlatform）指定對應的 FFmpeg 執行檔路徑，於執行期自動選用。
+- 錄影預估時間上限顯示（estimated recording time upper bound）。
+
+### Changed
+- 取代舊的 `Tools → Unity Replay Integration → Dependencies` 視窗為新的 Settings 視窗。
+- Dependency installer 改用 `EditorApplication.delayCall` 延後執行，避免 domain reload 時觸發 `ScriptableSingleton` 警告。
+
+### Fixed
+- 分段上傳時 `{FPS}` 與 `{RES}` placeholder 在 Discord 訊息中顯示異常的問題。
+
 ## [0.1.3] - 2026-04-21
 ### Added
 - `AdaptiveAudioSampleProvider`：音訊擷取現在會自動追蹤場景中的活躍 `AudioListener`，在 scene transition 或 listener 切換時無需重啟錄影 session。

@@ -1,3 +1,4 @@
+#if UNITY_EDITOR || !UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD
 using Cysharp.Threading.Tasks;
 
 namespace UnityReplayIntegration {
@@ -28,3 +29,4 @@ namespace UnityReplayIntegration {
 		}
 	}
 }
+#endif

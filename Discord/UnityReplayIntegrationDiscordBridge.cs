@@ -68,8 +68,10 @@ namespace UnityReplayIntegration {
 			}
 
 			// 2. Calculate target segment duration.
-			//    Use 85 % of the chunk size as margin to account for keyframe boundary rounding.
-			double safeChunk = chunkSize * 0.85;
+			//    Use 60 % of the chunk size as margin to account for keyframe boundary rounding.
+			//    Lower margin is necessary because -c copy only splits at keyframe boundaries,
+			//    so a sparse GOP (e.g. 30s) can push a segment well past the naive target time.
+			double safeChunk = chunkSize * 0.60;
 			double segmentSec = durationSec.Value * safeChunk / fileSize;
 			int estimatedParts = (int)Math.Ceiling(durationSec.Value / segmentSec);
 			Debug.Log($"[UnityReplayIntegration] Video ({fileSize / (1024f * 1024f):F1} MB, {durationSec.Value:F1}s) exceeds the {chunkSize / (1024f * 1024f):F0} MB limit. Splitting into ~{estimatedParts} parts via FFmpeg.");
@@ -155,16 +157,29 @@ namespace UnityReplayIntegration {
 			int total = partFiles.Count;
 			for (int i = 0; i < total; i++) {
 				string partPath = partFiles[i];
+
+				long partSize = 0;
+				try { partSize = new FileInfo(partPath).Length; } catch { }
+				bool partExceedsLimit = partSize > chunkSize;
+				if (partExceedsLimit) {
+					Debug.LogWarning($"[UnityReplayIntegration] Part {i + 1}/{total} ({partSize / (1024f * 1024f):F1} MB) still exceeds the limit after splitting"
+						+ " (keyframe boundary rounding). Retrying with zip compression.");
+				}
+
 				string partLabel = $"[{i + 1}/{total}]";
 				string content = i == 0
 					? $"{partLabel} {FormatTemplate(system.DiscordContent, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight)}"
 					: partLabel;
 				string threadTitle = $"{FormatTemplate(system.DiscordForumThreadTitle, filePath, durationSec, system.RecordingFps, system.RecordingWidth, system.RecordingHeight)} {partLabel}";
 
+				var builder = BuildWebhookBuilder(system, contentOverride: content, threadTitleOverride: threadTitle)
+					.AddFile(partPath);
+				if (partExceedsLimit) {
+					builder = builder.SetCompressAllFilesToZip(true, $"video_part{i + 1}.zip");
+				}
+
 				WebhookResponseResult result = default;
-				yield return BuildWebhookBuilder(system, contentOverride: content, threadTitleOverride: threadTitle)
-					.AddFile(partPath)
-					.ExecuteIEnumerator(r => result = r);
+				yield return builder.ExecuteIEnumerator(r => result = r);
 
 				if (result.isSuccess) {
 					Debug.Log($"[UnityReplayIntegration] Uploaded part {i + 1}/{total} to Discord.");

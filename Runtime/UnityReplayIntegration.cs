@@ -474,8 +474,9 @@ namespace UnityReplayIntegration {
 		private void DisposeCurrentSession() {
 #if INSTANT_REPLAY_PRESENT
 			if (_currentSession == null) return;
-			_currentSession.Dispose();
+			var session = _currentSession;
 			_currentSession = null;
+			Task.Run(() => { try { session.Dispose(); } catch { } });
 #endif
 		}
 

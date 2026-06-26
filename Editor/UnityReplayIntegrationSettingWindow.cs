@@ -158,27 +158,30 @@ namespace UnityReplayIntegration.Editor {
 			DrawSectionHeader("Build Setting", accent, ref _buildFoldout, k_BuildFoldoutKey);
 			if (!_buildFoldout) return;
 
+			BuildTargetGroup currentGroup = ReplayIntegrationBuildSettings.SelectedGroup;
 			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
 				EditorGUILayout.HelpBox(
-					excluded
-						? "Replay Integration is currently EXCLUDED from builds. Built players will skip it entirely; Editor behavior is unaffected."
-						: "Replay Integration is currently INCLUDED in builds.",
+					(excluded
+						? "Replay Integration is currently EXCLUDED from builds for the " + currentGroup + " platform group. Editor behavior is unaffected."
+						: "Replay Integration is currently INCLUDED in builds for the " + currentGroup + " platform group.") +
+					"\nThis setting is per platform group (the active target in File > Build Settings). Switching the active build target may use a different value — check it again after switching platforms.",
 					excluded ? MessageType.Warning : MessageType.Info
 				);
 
 				bool next = EditorGUILayout.ToggleLeft(
-					new GUIContent("Exclude from Build (editor-only mode)",
+					new GUIContent("Exclude from Build (editor-only mode) — for " + currentGroup,
 						"When enabled, the " + ReplayIntegrationBuildSettings.ExcludeDefine +
-						" scripting define is added to all build targets. " +
+						" scripting define is added to the scripting define symbols of the currently active platform group (" + currentGroup + ") only. " +
 						"Built players will skip Replay Integration entirely: scene components self-destruct on Awake, " +
-						"and the Discord/UniTask integration files compile to no-ops. Editor behavior is unaffected."),
+						"and the Discord/UniTask integration files compile to no-ops. Editor behavior is unaffected. " +
+						"If you build for multiple platforms, set this separately for each platform group."),
 					excluded);
 				if (next != excluded) {
 					ReplayIntegrationBuildSettings.ExcludeFromBuild = next;
 					GUIUtility.ExitGUI();
 				}
 				EditorGUILayout.LabelField(
-					"Define: " + ReplayIntegrationBuildSettings.ExcludeDefine,
+					"Define: " + ReplayIntegrationBuildSettings.ExcludeDefine + "  (platform group: " + currentGroup + ")",
 					EditorStyles.miniLabel);
 			}
 		}

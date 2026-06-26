@@ -15,7 +15,7 @@ namespace UnityReplayIntegration.Editor {
 			set => SetDefineForSelectedGroup(value);
 		}
 
-		static BuildTargetGroup SelectedGroup {
+		public static BuildTargetGroup SelectedGroup {
 			get {
 				var group = EditorUserBuildSettings.selectedBuildTargetGroup;
 				return group == BuildTargetGroup.Unknown ? BuildTargetGroup.Standalone : group;

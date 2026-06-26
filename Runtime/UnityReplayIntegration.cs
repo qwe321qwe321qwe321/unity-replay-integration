@@ -494,18 +494,24 @@ namespace UnityReplayIntegration {
 #else
 	/// <summary>
 	/// Build-time stub. The UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD scripting define is set,
-	/// so this component self-destroys on Awake and all public API calls are no-ops.
-	/// User call sites continue to compile.
+	/// so all public API calls are no-ops. Instance is maintained as a normal singleton so that
+	/// user code using Instance.StartRecording() etc. does not throw NullReferenceException.
 	/// </summary>
 	public class UnityReplayIntegration : MonoBehaviour {
-		public static UnityReplayIntegration Instance => null;
+		public static UnityReplayIntegration Instance { get; private set; }
 		public static Func<string, bool, IEnumerator> DiscordUploadHandler;
 
 		public bool IsRecording => false;
 		public bool IsPaused => false;
 
 		private void Awake() {
-			Destroy(this);
+			if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+			Instance = this;
+			DontDestroyOnLoad(gameObject);
+		}
+
+		private void OnDestroy() {
+			if (Instance == this) Instance = null;
 		}
 
 		public void StartRecording() {}

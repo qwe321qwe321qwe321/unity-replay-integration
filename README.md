@@ -189,6 +189,19 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - `InstantReplay` 與其 `org.nuget.*` 依賴在部分 Unity 版本中可能顯示 `missing signature` / `unsigned package` 警告；若套件能正常 resolve 與編譯，通常不影響使用
 - FFmpeg 分段上傳需要 FFmpeg 已安裝並可從系統 PATH 存取，或在 Inspector 中指定執行檔路徑
 
+### 使用第三方音效引擎（FMOD / WWISE）
+
+當專案停用 Unity 內建 Audio System（例如使用 FMOD 或 WWISE）時，`AudioSettings.outputSampleRate` 無法查詢，若 `Record Audio` 仍設為啟用，`StartRecording()` 會拋出：
+
+```
+ArgumentException: Sample rate must be greater than 0
+Audio system is disabled, so AudioSettings.outputSampleRate cannot be queried.
+```
+
+**不需要錄音**：在 Inspector 將 `Record Audio` 關閉即可，不會再拋出 Exception。
+
+**需要錄到 FMOD 音訊**：目前沒有內建支援。暫代做法是自行撰寫腳本從 FMOD 的 DSP 層挖出 PCM 資料，灌進一個 dummy `AudioSource`，讓 InstantReplay 透過 `AudioListener` 擷取到這份音訊。可參考 FMOD 官方論壇的討論：[Can't record with Unity Recorder](https://qa.fmod.com/t/cant-record-with-unity-recorder/18892/9)。未來可能會補功能讓這個流程更簡單。
+
 ## License
 
 本 package 使用 MIT License，詳見 `LICENSE`。

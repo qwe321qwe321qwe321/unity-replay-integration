@@ -267,7 +267,7 @@ namespace UnityReplayIntegration {
 					},
 					AudioOptions = new AudioEncoderOptions {
 						Channels = 2,
-						SampleRate = (uint)AudioSettings.outputSampleRate,
+						SampleRate = recordAudio ? (uint)AudioSettings.outputSampleRate : 44100u,
 						Bitrate = 128000,
 					},
 					MaxNumberOfRawFrameBuffers = maxNumberOfRawFrameBuffers,

@@ -471,12 +471,19 @@ namespace UnityReplayIntegration {
 
 		#region Private Helpers
 
+		/// <summary>
+		/// Session disposal touches Unity API internally (e.g. Application.isPlaying via
+		/// ScreenshotFrameProvider.Dispose), which is illegal from a background thread and was
+		/// silently corrupting engine/Mono state when this used to run via Task.Run (see CHANGELOG
+		/// v0.1.6). Must run synchronously on the main thread; this can hitch for long sessions.
+		/// </summary>
 		private void DisposeCurrentSession() {
 #if INSTANT_REPLAY_PRESENT
 			if (_currentSession == null) return;
 			var session = _currentSession;
 			_currentSession = null;
-			Task.Run(() => { try { session.Dispose(); } catch { } });
+			try { session.Dispose(); }
+			catch (Exception exception) { Debug.LogException(exception); }
 #endif
 		}
 

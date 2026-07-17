@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace UnityReplayIntegration.Editor {
 	/// <summary>
@@ -24,6 +25,11 @@ namespace UnityReplayIntegration.Editor {
 		internal const string InstantReplayDepsPackageId = "jp.co.cyberagent.instant-replay.dependencies";
 		const string InstantReplayGitUrl                 = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=Packages/jp.co.cyberagent.instant-replay#release";
 		const string InstantReplayDepsGitUrl             = "https://github.com/CyberAgentGameEntertainment/InstantReplay.git?path=/Packages/jp.co.cyberagent.instant-replay.dependencies#release";
+
+		// Raw package.json on the same "release" branch/path the Git dependency above tracks,
+		// used purely to read the latest published "version" field for update checks.
+		const string InstantReplayPackageJsonUrl     = "https://raw.githubusercontent.com/CyberAgentGameEntertainment/InstantReplay/release/Packages/jp.co.cyberagent.instant-replay/package.json";
+		const string InstantReplayDepsPackageJsonUrl = "https://raw.githubusercontent.com/CyberAgentGameEntertainment/InstantReplay/release/Packages/jp.co.cyberagent.instant-replay.dependencies/package.json";
 
 		// UnityNuGet scoped registry – required so UPM can resolve org.nuget.* packages
 		// that jp.co.cyberagent.instant-replay.dependencies depends on.
@@ -47,8 +53,13 @@ namespace UnityReplayIntegration.Editor {
 		static AddRequest _currentAddRequest;
 		static string _currentInstallUrl;
 		static HashSet<string> _installedIds = new HashSet<string>();
+		static Dictionary<string, string> _installedVersions = new Dictionary<string, string>();
+		static Dictionary<string, string> _latestVersions = new Dictionary<string, string>();
+		static HashSet<string> _versionChecksInFlight = new HashSet<string>();
+		static bool _versionCheckedThisSession;
 		static bool _packageStateKnown;
 		static bool _autoOpenWindowAfterNextRefresh;
+		static bool _forceUpdateCheckAfterNextRefresh;
 
 		internal static event Action StateChanged;
 		internal static string LastOperationMessage { get; private set; }
@@ -59,6 +70,7 @@ namespace UnityReplayIntegration.Editor {
 		internal static bool IsInstantReplayFullyInstalled =>
 			IsPackageInstalled(InstantReplayPackageId) &&
 			IsPackageInstalled(InstantReplayDepsPackageId);
+		internal static bool IsCheckingForUpdates => _versionChecksInFlight.Count > 0;
 
 		static UnityReplayIntegrationDependencyInstaller() {
 			// Defer all UPM / window work until after domain reload finishes.
@@ -82,11 +94,12 @@ namespace UnityReplayIntegration.Editor {
 			return File.ReadAllText(manifestPath).Contains(UnityNuGetRegistryUrl);
 		}
 
-		internal static void RefreshInstalledPackages(bool autoOpenWindowWhenRequiredMissing = false) {
+		internal static void RefreshInstalledPackages(bool autoOpenWindowWhenRequiredMissing = false, bool forceUpdateCheck = false) {
 			if (_listRequest != null && !_listRequest.IsCompleted)
 				return;
 
 			_autoOpenWindowAfterNextRefresh = autoOpenWindowWhenRequiredMissing;
+			_forceUpdateCheckAfterNextRefresh = _forceUpdateCheckAfterNextRefresh || forceUpdateCheck;
 			_listRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
 			EditorApplication.update -= WaitForPackageList;
 			EditorApplication.update += WaitForPackageList;
@@ -98,6 +111,34 @@ namespace UnityReplayIntegration.Editor {
 				return;
 
 			EnqueueInstalls(GetMissingRequiredInstallUrls());
+		}
+
+		internal static void UpdateDependency(string packageId) {
+			string url = GetGitUrl(packageId);
+			if (url != null)
+				EnqueueInstalls(new[] { url });
+		}
+
+		internal static bool HasUpdatesAvailable =>
+			(IsPackageInstalled(InstantReplayPackageId) && IsUpdateAvailable(InstantReplayPackageId)) ||
+			(IsPackageInstalled(InstantReplayDepsPackageId) && IsUpdateAvailable(InstantReplayDepsPackageId));
+
+		internal static void UpdateAllAvailable() {
+			var urls = new List<string>();
+			if (IsPackageInstalled(InstantReplayPackageId) && IsUpdateAvailable(InstantReplayPackageId))
+				urls.Add(InstantReplayGitUrl);
+			if (IsPackageInstalled(InstantReplayDepsPackageId) && IsUpdateAvailable(InstantReplayDepsPackageId))
+				urls.Add(InstantReplayDepsGitUrl);
+
+			EnqueueInstalls(urls);
+		}
+
+		static string GetGitUrl(string packageId) {
+			switch (packageId) {
+				case InstantReplayPackageId:     return InstantReplayGitUrl;
+				case InstantReplayDepsPackageId: return InstantReplayDepsGitUrl;
+				default:                         return null;
+			}
 		}
 
 		internal static void InstallOptionalDependency(string packageId) {
@@ -126,6 +167,7 @@ namespace UnityReplayIntegration.Editor {
 			}
 
 			_installedIds = new HashSet<string>(_listRequest.Result.Select(p => p.name));
+			_installedVersions = _listRequest.Result.ToDictionary(p => p.name, p => p.version);
 			_packageStateKnown = true;
 			NotifyStateChanged();
 
@@ -137,6 +179,85 @@ namespace UnityReplayIntegration.Editor {
 			}
 
 			_autoOpenWindowAfterNextRefresh = false;
+
+			bool forceUpdateCheck = _forceUpdateCheckAfterNextRefresh;
+			_forceUpdateCheckAfterNextRefresh = false;
+			CheckForUpdates(force: forceUpdateCheck);
+		}
+
+		// ── Update checks ───────────────────────────────────────────────────
+		// InstantReplay/InstantReplayDependencies are installed as Git dependencies pinned to
+		// the "release" branch, so UPM never reports newer versions on its own. We separately
+		// fetch package.json straight off that branch just to read its "version" field.
+		internal static string GetInstalledVersion(string packageId) {
+			return _installedVersions.TryGetValue(packageId, out var v) ? v : null;
+		}
+
+		internal static string GetLatestKnownVersion(string packageId) {
+			return _latestVersions.TryGetValue(packageId, out var v) ? v : null;
+		}
+
+		internal static bool IsUpdateAvailable(string packageId) {
+			string installed = GetInstalledVersion(packageId);
+			string latest = GetLatestKnownVersion(packageId);
+			if (string.IsNullOrEmpty(installed) || string.IsNullOrEmpty(latest)) return false;
+			return CompareVersions(latest, installed) > 0;
+		}
+
+		internal static void CheckForUpdates(bool force = false) {
+			if (!_packageStateKnown) return;
+			if (_versionCheckedThisSession && !force) return;
+			_versionCheckedThisSession = true;
+
+			if (IsPackageInstalled(InstantReplayPackageId))
+				StartVersionCheck(InstantReplayPackageId, InstantReplayPackageJsonUrl);
+			if (IsPackageInstalled(InstantReplayDepsPackageId))
+				StartVersionCheck(InstantReplayDepsPackageId, InstantReplayDepsPackageJsonUrl);
+		}
+
+		static void StartVersionCheck(string packageId, string packageJsonUrl) {
+			if (!_versionChecksInFlight.Add(packageId)) return;
+
+			var request = UnityWebRequest.Get(packageJsonUrl);
+			var op = request.SendWebRequest();
+			op.completed += _ => OnVersionCheckCompleted(packageId, request);
+			NotifyStateChanged();
+		}
+
+		static void OnVersionCheckCompleted(string packageId, UnityWebRequest request) {
+			_versionChecksInFlight.Remove(packageId);
+
+			if (request.result == UnityWebRequest.Result.Success) {
+				try {
+					var info = JsonUtility.FromJson<PackageJsonVersionOnly>(request.downloadHandler.text);
+					if (!string.IsNullOrEmpty(info?.version))
+						_latestVersions[packageId] = info.version;
+				} catch (Exception e) {
+					Debug.LogWarning($"[UnityReplayIntegration] Failed to parse latest version for {packageId}: {e.Message}");
+				}
+			} else {
+				Debug.LogWarning($"[UnityReplayIntegration] Failed to check latest version for {packageId}: {request.error}");
+			}
+
+			request.Dispose();
+			NotifyStateChanged();
+		}
+
+		static int CompareVersions(string a, string b) {
+			string[] pa = a.Split('.');
+			string[] pb = b.Split('.');
+			int len = Math.Max(pa.Length, pb.Length);
+			for (int i = 0; i < len; i++) {
+				int va = i < pa.Length && int.TryParse(pa[i], out var ra) ? ra : 0;
+				int vb = i < pb.Length && int.TryParse(pb[i], out var rb) ? rb : 0;
+				if (va != vb) return va.CompareTo(vb);
+			}
+			return 0;
+		}
+
+		[Serializable]
+		class PackageJsonVersionOnly {
+			public string version;
 		}
 
 		static IEnumerable<string> GetMissingRequiredInstallUrls() {

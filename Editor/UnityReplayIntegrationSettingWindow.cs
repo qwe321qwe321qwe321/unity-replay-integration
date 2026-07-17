@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -88,6 +89,18 @@ namespace UnityReplayIntegration.Editor {
 					);
 				}
 
+				bool instantReplayUpdateAvailable = UnityReplayIntegrationDependencyInstaller.IsUpdateAvailable(UnityReplayIntegrationDependencyInstaller.InstantReplayPackageId);
+				bool instantReplayDepsUpdateAvailable = UnityReplayIntegrationDependencyInstaller.IsUpdateAvailable(UnityReplayIntegrationDependencyInstaller.InstantReplayDepsPackageId);
+				if (instantReplayUpdateAvailable || instantReplayDepsUpdateAvailable) {
+					var names = new List<string>();
+					if (instantReplayUpdateAvailable) names.Add("InstantReplay");
+					if (instantReplayDepsUpdateAvailable) names.Add("InstantReplay Dependencies");
+					EditorGUILayout.HelpBox(
+						"Update available for: " + string.Join(", ", names) + ". See details below.",
+						MessageType.Warning
+					);
+				}
+
 				EditorGUILayout.HelpBox(
 					"Known issue: after installing InstantReplay and its org.nuget dependencies, Unity may show missing signature or unsigned package warnings. " +
 					"This is usually caused by the package source being a Git dependency and UnityNuGet/OpenUPM-based registry packages rather than a Unity-signed registry package. " +
@@ -99,10 +112,15 @@ namespace UnityReplayIntegration.Editor {
 				using (new EditorGUILayout.HorizontalScope()) {
 					using (new EditorGUI.DisabledScope(isInstalling)) {
 						if (GUILayout.Button("Refresh Status"))
-							UnityReplayIntegrationDependencyInstaller.RefreshInstalledPackages();
+							UnityReplayIntegrationDependencyInstaller.RefreshInstalledPackages(forceUpdateCheck: true);
 
 						if (GUILayout.Button("Install Missing Required"))
 							UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies();
+
+						if (UnityReplayIntegrationDependencyInstaller.HasUpdatesAvailable) {
+							if (GUILayout.Button("Update All"))
+								UnityReplayIntegrationDependencyInstaller.UpdateAllAvailable();
+						}
 					}
 				}
 
@@ -120,14 +138,16 @@ namespace UnityReplayIntegration.Editor {
 					"Provides the package dependencies required by InstantReplay, including org.nuget packages that may trigger known signature warnings in newer Unity versions.",
 					UnityReplayIntegrationDependencyInstaller.IsPackageInstalled(UnityReplayIntegrationDependencyInstaller.InstantReplayDepsPackageId),
 					isInstalling,
-					UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies
+					UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies,
+					UnityReplayIntegrationDependencyInstaller.InstantReplayDepsPackageId
 				);
 				DrawDependencyStatus(
 					"InstantReplay",
 					"Core replay recording package used by Unity Replay Integration. Installed via Git URL, so Unity may report it as unsigned depending on editor version.",
 					UnityReplayIntegrationDependencyInstaller.IsPackageInstalled(UnityReplayIntegrationDependencyInstaller.InstantReplayPackageId),
 					isInstalling,
-					UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies
+					UnityReplayIntegrationDependencyInstaller.InstallMissingRequiredDependencies,
+					UnityReplayIntegrationDependencyInstaller.InstantReplayPackageId
 				);
 
 				EditorGUILayout.Space();
@@ -215,7 +235,7 @@ namespace UnityReplayIntegration.Editor {
 			}
 		}
 
-		static void DrawDependencyStatus(string title, string description, bool installed, bool isInstalling, System.Action installAction) {
+		static void DrawDependencyStatus(string title, string description, bool installed, bool isInstalling, System.Action installAction, string updateCheckPackageId = null) {
 			using (new EditorGUILayout.VerticalScope("box")) {
 				using (new EditorGUILayout.HorizontalScope()) {
 					EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
@@ -233,6 +253,35 @@ namespace UnityReplayIntegration.Editor {
 				}
 
 				EditorGUILayout.LabelField(description, EditorStyles.wordWrappedMiniLabel);
+
+				if (installed && !string.IsNullOrEmpty(updateCheckPackageId))
+					DrawUpdateStatus(updateCheckPackageId, isInstalling);
+			}
+		}
+
+		static void DrawUpdateStatus(string packageId, bool isInstalling) {
+			string installedVersion = UnityReplayIntegrationDependencyInstaller.GetInstalledVersion(packageId);
+			string latestVersion = UnityReplayIntegrationDependencyInstaller.GetLatestKnownVersion(packageId);
+			bool updateAvailable = UnityReplayIntegrationDependencyInstaller.IsUpdateAvailable(packageId);
+
+			using (new EditorGUILayout.HorizontalScope()) {
+				string versionLabel = "Version: " + (installedVersion ?? "unknown");
+				if (!string.IsNullOrEmpty(latestVersion))
+					versionLabel += "  (latest: " + latestVersion + ")";
+				EditorGUILayout.LabelField(versionLabel, EditorStyles.miniLabel);
+
+				if (updateAvailable) {
+					GUILayout.FlexibleSpace();
+					var prevColor = GUI.color;
+					GUI.color = new Color(0.95f, 0.75f, 0.35f);
+					GUILayout.Label("Update available", EditorStyles.miniBoldLabel);
+					GUI.color = prevColor;
+
+					using (new EditorGUI.DisabledScope(isInstalling)) {
+						if (GUILayout.Button("Update", GUILayout.Width(90f)))
+							UnityReplayIntegrationDependencyInstaller.UpdateDependency(packageId);
+					}
+				}
 			}
 		}
 	}

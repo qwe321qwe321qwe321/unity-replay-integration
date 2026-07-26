@@ -96,6 +96,8 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
   壓縮影格最大記憶體使用量
 - `Max Number Of Raw Frame Buffers`
   Raw frame buffer 上限，數值越高越能平滑突發影格，但會消耗更多記憶體
+- `Export Timeout Seconds`
+  匯出影片的等待秒數上限（預設 `60`）。超過此時間仍未完成時，會捨棄卡住的 session、輸出錯誤訊息並自動重新開始錄影，避免原生 encoder 死結（例如 `Record Audio` 啟用但場景中沒有作用中的 `AudioListener`）永久阻塞後續匯出。設為 `0` 表示無限等待
 - `Start On Awake`
   是否在啟動時自動開始錄影
 - `Record Audio`

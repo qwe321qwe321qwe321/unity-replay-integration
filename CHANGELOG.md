@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2026-07-26
+### Added
+- `exportTimeoutSeconds` 欄位（Inspector `Recording` 區塊，預設 60 秒，範圍 0–300）：匯出影片時若 `StopAndExportAsync` 超過此秒數仍未完成，會放棄該 session、輸出錯誤訊息並自動重新開始錄影。設為 `0` 可維持舊行為（無限等待）。計時使用 `Time.unscaledDeltaTime`，`timeScale = 0` 時仍會正常倒數。
+
+### Fixed
+- 匯出影片卡住後 `_isExporting` 永遠停在 `true`、導致之後所有匯出熱鍵（預設 `F9`）全部失效的問題：`ExportVideoCoroutine` 改用 `try/finally` 確保所有離開路徑（含 timeout 與 faulted）都會重置旗標。
+- 原生 encoder 死結（最常見成因是 `Record Audio` 啟用但場景中沒有作用中的 `AudioListener`，音軌從未收到 sample，導致 muxer 在 finalize 階段無限等待）會永久阻塞後續匯出的問題：超時後不會同步呼叫 `session.Dispose()`（避免 Dispose 本身也卡住主執行緒），改為捨棄該 session 並以 fire-and-forget 方式觀察該 task，避免延遲拋出的例外變成 `UnobservedTaskException`。
+
+### Changed
+- `_isExporting` 改在 Discord 上傳開始「之前」清除，因此上一段影片上傳中仍可擷取新的片段。
+
 ## [0.1.10] - 2026-07-17
 ### Fixed
 - `DisposeCurrentSession` 改為在主執行緒同步呼叫 `session.Dispose()`，不再透過 `Task.Run` 丟到背景執行緒執行。Session 釋放內部會觸碰 Unity API（例如 `ScreenshotFrameProvider.Dispose` 存取 `Application.isPlaying`），在背景執行緒呼叫是不合法的，過去曾靜默造成 engine/Mono 狀態損毀（詳見 v0.1.6）；此變更會讓長時間 session 的釋放可能造成主執行緒短暫卡頓，但避免了更嚴重的狀態損毀問題。

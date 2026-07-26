@@ -45,6 +45,8 @@ namespace UnityReplayIntegration {
 		[SerializeField, Range(1, 500)] private int maxMemoryUsageMb = 10;
 		[Tooltip("Number of raw (uncompressed) frame buffers held before compression. Higher values smooth bursty frame delivery at the cost of memory.")]
 		[SerializeField, Range(1, 20)] private int maxNumberOfRawFrameBuffers = 4;
+		[Tooltip("Maximum seconds to wait for a video export to finish before giving up, discarding the stuck session, and restarting recording. Prevents a hung native encoder (e.g. an audio track that never received samples) from permanently blocking further exports. Set to 0 to wait indefinitely (legacy behavior).")]
+		[SerializeField, Range(0, 300)] private float exportTimeoutSeconds = 60f;
 		[Tooltip("When enabled, recording starts automatically on Awake. Disable to start recording manually via StartRecording().")]
 		[SerializeField] private bool startOnAwake = true;
 		[Tooltip("When disabled, audio is not captured and an AudioListener is not required in the scene.")]
@@ -371,67 +373,115 @@ namespace UnityReplayIntegration {
 
 		private IEnumerator ExportVideoCoroutine(Action<string> onComplete) {
 #if INSTANT_REPLAY_PRESENT
+			// try/finally guarantees _isExporting is reset on every exit path (including
+			// a timed-out or faulted export), so a single stuck export can no longer wedge
+			// the flag true for the rest of the play session and block all future F9 presses.
 			_isExporting = true;
-
-			var session = _currentSession;
-			if (session == null) {
-				Debug.LogWarning("[UnityReplayIntegration] No active recording session to export.");
-				_isExporting = false;
-				onComplete?.Invoke(null);
-				yield break;
-			}
-			_currentSession = null;
-
-			string directory = GetOutputDirectory();
-			string exportedVideoPath = null;
-
-			ValueTask<string> exportTask;
 			try {
-				Directory.CreateDirectory(directory);
-				string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-				string videoPath = Path.Combine(directory, $"replay_{timestamp}.mp4");
-				exportTask = session.StopAndExportAsync(outputPath: videoPath);
-			} catch (Exception exception) {
-				Debug.LogException(exception);
-				session.Dispose();
-				StartRecording();
-				_isExporting = false;
-				onComplete?.Invoke(null);
-				yield break;
-			}
-
-			// Poll on main thread until the background task completes.
-			while (!exportTask.IsCompleted) {
-				yield return null;
-			}
-			session.Dispose();
-
-			if (exportTask.IsFaulted) {
-				var aggregateException = exportTask.AsTask().Exception;
-				Debug.LogException(aggregateException?.InnerException ?? aggregateException);
-			} else {
-				exportedVideoPath = exportTask.Result;
-				if (string.IsNullOrEmpty(exportedVideoPath)) {
-					Debug.LogWarning("[UnityReplayIntegration] Export produced no output (no data recorded yet).");
-					exportedVideoPath = null;
-				} else {
-					Debug.Log($"[UnityReplayIntegration] Video exported: {exportedVideoPath}");
+				var session = _currentSession;
+				if (session == null) {
+					Debug.LogWarning("[UnityReplayIntegration] No active recording session to export.");
+					onComplete?.Invoke(null);
+					yield break;
 				}
+				_currentSession = null;
+
+				string directory = GetOutputDirectory();
+				string exportedVideoPath = null;
+
+				ValueTask<string> exportTask;
+				try {
+					Directory.CreateDirectory(directory);
+					string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+					string videoPath = Path.Combine(directory, $"replay_{timestamp}.mp4");
+					exportTask = session.StopAndExportAsync(outputPath: videoPath);
+				} catch (Exception exception) {
+					Debug.LogException(exception);
+					session.Dispose();
+					StartRecording();
+					onComplete?.Invoke(null);
+					yield break;
+				}
+
+				// Poll on main thread until the background task completes, or until the
+				// timeout elapses. unscaledDeltaTime so a paused game (timeScale 0) still times out.
+				float elapsed = 0f;
+				bool timedOut = false;
+				while (!exportTask.IsCompleted) {
+					if (exportTimeoutSeconds > 0f) {
+						elapsed += Time.unscaledDeltaTime;
+						if (elapsed >= exportTimeoutSeconds) {
+							timedOut = true;
+							break;
+						}
+					}
+					yield return null;
+				}
+
+				if (timedOut) {
+					Debug.LogError(
+						$"[UnityReplayIntegration] Export timed out after {exportTimeoutSeconds:F0}s: StopAndExportAsync never completed. "
+						+ "Abandoning the stuck session and restarting recording. This most commonly happens when Record Audio is on but "
+						+ "the audio track never received samples (no active AudioListener), so the muxer waits forever at finalize. "
+						+ "Ensure an active AudioListener exists (or call RefreshAudioListener / enable Auto Detect Audio Listener On Tick), "
+						+ "or disable Record Audio.");
+					// Do NOT Dispose() the session synchronously here: if the native encoder is
+					// deadlocked, Dispose can block the main thread too and re-freeze the editor.
+					// Abandon it (a rare one-off native leak) and observe the task so a late fault
+					// doesn't surface as an UnobservedTaskException.
+					ObserveAbandonedExportTask(exportTask);
+					StartRecording();
+					onComplete?.Invoke(null);
+					yield break;
+				}
+
+				session.Dispose();
+
+				if (exportTask.IsFaulted) {
+					var aggregateException = exportTask.AsTask().Exception;
+					Debug.LogException(aggregateException?.InnerException ?? aggregateException);
+				} else {
+					exportedVideoPath = exportTask.Result;
+					if (string.IsNullOrEmpty(exportedVideoPath)) {
+						Debug.LogWarning("[UnityReplayIntegration] Export produced no output (no data recorded yet).");
+						exportedVideoPath = null;
+					} else {
+						Debug.Log($"[UnityReplayIntegration] Video exported: {exportedVideoPath}");
+					}
+				}
+
+				StartRecording();
+				// Clear the flag before the (potentially long) Discord upload so a new clip can be
+				// captured while the previous one uploads. The finally below is only a safety net.
+				_isExporting = false;
+
+				if (exportedVideoPath != null && ShouldSendToDiscord()) {
+					yield return StartCoroutine(DiscordUploadHandler(exportedVideoPath, false));
+				}
+
+				onComplete?.Invoke(exportedVideoPath);
+			} finally {
+				_isExporting = false;
 			}
-
-			StartRecording();
-			_isExporting = false;
-
-			if (exportedVideoPath != null && ShouldSendToDiscord()) {
-				yield return StartCoroutine(DiscordUploadHandler(exportedVideoPath, false));
-			}
-
-			onComplete?.Invoke(exportedVideoPath);
 #else
 			onComplete?.Invoke(null);
 			yield break;
 #endif
 		}
+
+#if INSTANT_REPLAY_PRESENT
+		/// <summary>
+		/// Fire-and-forget observation of an export task we gave up waiting on. Awaiting it swallows
+		/// any eventual exception so an abandoned, faulting export does not raise an
+		/// UnobservedTaskException later. Never blocks the main thread.
+		/// </summary>
+		private static async void ObserveAbandonedExportTask(ValueTask<string> task) {
+			try { await task; }
+			catch (Exception exception) {
+				Debug.LogWarning($"[UnityReplayIntegration] Abandoned export task later finished with an exception: {exception.Message}");
+			}
+		}
+#endif
 
 		private IEnumerator CaptureScreenshotCoroutine(Action<string> onComplete) {
 			yield return new WaitForEndOfFrame();

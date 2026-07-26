@@ -1,0 +1,3 @@
+# Cygwin/MSYS crash dumps
+*.stackdump
+*.stackdump.meta

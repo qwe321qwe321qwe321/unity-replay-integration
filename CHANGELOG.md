@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] - 2026-07-27
+### Added
+- Settings 視窗會在 active Build Profile 的 Player Settings override 與專案設定不一致時顯示警告，標示該 define 對實際編譯與 build 而言目前是 SET 還是 NOT SET（實際生效的仍是 profile override）。
+
+### Fixed
+- Settings 視窗 `Build Setting` 的兩個 exclude toggle 在 Unity 6 會把 scripting define 寫進 **active Build Profile 的 Player Settings override** 而非 Project Settings 的問題：Unity 6 起，當 active build profile 帶有 player settings override 時，`PlayerSettings.Get/SetScriptingDefineSymbolsForGroup` 這組 static API 會解析到該 profile 的 PlayerSettings 副本。改為直接以 `SerializedObject` 讀寫 `ProjectSettings/ProjectSettings.asset` 的全域 PlayerSettings（平台 key 使用 `NamedBuildTarget.TargetName`），繞過 active profile。若序列化結構不符（舊版 Unity）則 fallback 回原本的 `PlayerSettings` API 並輸出警告。
+- 切換 toggle 後僅在「實際生效的 define 集合」有變化時才呼叫 `CompilationPipeline.RequestScriptCompilation()`，避免被 profile override 遮蔽時觸發無謂的重新編譯。
+
 ## [0.1.12] - 2026-07-27
 ### Added
 - Settings 視窗 `Build Setting` 區塊新增 `Exclude InstantReplay` 開關：勾選後會為目前 platform group 加上 `EXCLUDE_INSTANTREPLAY` scripting define。此 define 由 InstantReplay 套件自身的 asmdef（`defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`）辨識，會將 InstantReplay 的所有 assembly 與原生 encoder plugin 從專案中移除。

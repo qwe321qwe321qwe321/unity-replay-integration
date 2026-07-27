@@ -185,9 +185,12 @@ namespace UnityReplayIntegration.Editor {
 					(excluded
 						? "Replay Integration is currently EXCLUDED from builds for the " + currentGroup + " platform group. Editor behavior is unaffected."
 						: "Replay Integration is currently INCLUDED in builds for the " + currentGroup + " platform group.") +
-					"\nThis setting is per platform group (the active target in File > Build Settings). Switching the active build target may use a different value — check it again after switching platforms.",
+					"\nThis setting is per platform group (the active target in File > Build Settings). Switching the active build target may use a different value — check it again after switching platforms." +
+					"\nBoth toggles below write to Project Settings > Player (ProjectSettings.asset), not to the active Build Profile.",
 					excluded ? MessageType.Warning : MessageType.Info
 				);
+
+				DrawProfileOverrideWarning(ReplayIntegrationBuildSettings.ExcludeDefine, "Exclude from Build");
 
 				bool next = EditorGUILayout.ToggleLeft(
 					new GUIContent("Exclude from Build (editor-only mode) — for " + currentGroup,
@@ -214,6 +217,8 @@ namespace UnityReplayIntegration.Editor {
 					instantReplayExcluded ? MessageType.Warning : MessageType.Info
 				);
 
+				DrawProfileOverrideWarning(ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine, "Exclude InstantReplay");
+
 				bool nextInstantReplay = EditorGUILayout.ToggleLeft(
 					new GUIContent("Exclude InstantReplay — for " + currentGroup,
 						"When enabled, the " + ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine +
@@ -238,6 +243,21 @@ namespace UnityReplayIntegration.Editor {
 						MessageType.Warning);
 				}
 			}
+		}
+
+		// The toggles edit the project-level player settings. When the active build profile carries a
+		// Player Settings override, that override is what actually reaches compilation and builds, so
+		// the toggle state can disagree with reality — say so instead of letting it look broken.
+		static void DrawProfileOverrideWarning(string define, string toggleName) {
+			if (!ReplayIntegrationBuildSettings.IsOverriddenByActiveProfile(define)) return;
+
+			bool effective = ReplayIntegrationBuildSettings.HasEffectiveDefine(define);
+			EditorGUILayout.HelpBox(
+				"The active Build Profile overrides Player Settings: " + define + " is currently " +
+				(effective ? "SET" : "NOT SET") + " for actual compilation and builds, which does not match the \"" +
+				toggleName + "\" toggle below (that toggle shows the project-level value). " +
+				"Edit the profile's Player Settings override, or deactivate the profile, to make them agree.",
+				MessageType.Warning);
 		}
 
 		// ─────────────────────────────────────────────────────────────────

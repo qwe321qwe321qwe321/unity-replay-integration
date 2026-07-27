@@ -144,13 +144,19 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 
 ## Build 設定（Settings 視窗）
 
-開啟 **Tools > Unity Replay Integration > Settings**，在 `Build Setting` 區塊可切換兩個排除選項。兩者都是寫入 **目前作用中的 platform group**（File > Build Settings 的 active target）的 scripting define symbols，切換平台後需重新確認。
+開啟 **Tools > Unity Replay Integration > Settings**，在 `Build Setting` 區塊可切換兩個排除選項。兩者都是寫入 **Project Settings > Player**（`ProjectSettings/ProjectSettings.asset`）中 **目前作用中的 platform group**（File > Build Settings 的 active target）的 scripting define symbols，切換平台後需重新確認。
 
 - `Exclude from Build (editor-only mode)`
   加上 `UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD` define。Build 出來的 player 會完全跳過 Replay Integration：元件改為 no-op stub（`Instance` 仍維持正常 singleton，呼叫 API 不會 NPE），Discord / UniTask 整合檔案編譯為空。Editor 行為不受影響。
 - `Exclude InstantReplay`
   加上 `EXCLUDE_INSTANTREPLAY` define。此 define 由 InstantReplay 套件自身的 asmdef（`defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`）辨識，會將 InstantReplay 的所有 assembly 與原生 encoder plugin 從專案中移除，適合暫時排除原生依賴以縮小 build 或排查問題。此時本 package 的錄影 API 全部降級為 no-op（回傳 `null`，不拋例外）。
   注意：scripting define 同時作用於 Editor，因此勾選後 Play Mode 也無法錄影。
+
+### 與 Build Profile 的關係（Unity 6）
+
+Unity 6 起，若目前作用中的 Build Profile 帶有 **Player Settings override**，`PlayerSettings` 的 static API 會解析到該 profile 的 PlayerSettings 副本，寫入的 define 會落在 build profile asset 裡而不是專案設定。此 package 的兩個 toggle 一律直接讀寫全域的 `ProjectSettings/ProjectSettings.asset`，不受 active profile 影響。
+
+由於實際編譯與 build 仍以 profile override 為準，當兩者不一致時，Settings 視窗會顯示警告，標示該 define 目前對編譯而言究竟是 SET 還是 NOT SET。此時請改到該 profile 的 Player Settings override 調整，或停用該 profile。
 
 ## 執行流程
 

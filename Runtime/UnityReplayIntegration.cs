@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 using InstantReplay;
 using UniEnc;
 #endif
@@ -93,7 +93,7 @@ namespace UnityReplayIntegration {
 
 		#endregion
 
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 		private RealtimeInstantReplaySession _currentSession;
 		private AdaptiveAudioSampleProvider _adaptiveProvider;
 		private volatile bool _pendingSessionRestart;
@@ -177,7 +177,7 @@ namespace UnityReplayIntegration {
 			Instance = this;
 			DontDestroyOnLoad(gameObject);
 
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			if (recordAudio) {
 				_adaptiveProvider = new AdaptiveAudioSampleProvider(autoDetectAudioListenerOnTick);
 			}
@@ -191,7 +191,7 @@ namespace UnityReplayIntegration {
 			if (Instance == this) {
 				Instance = null;
 			}
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_adaptiveProvider?.Dispose();
 			_adaptiveProvider = null;
 #endif
@@ -199,7 +199,7 @@ namespace UnityReplayIntegration {
 		}
 
 		private void Update() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_adaptiveProvider?.Tick();
 #endif
 			HandlePendingSessionRestart();
@@ -207,7 +207,7 @@ namespace UnityReplayIntegration {
 		}
 
 		private void HandlePendingSessionRestart() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			if (!_pendingSessionRestart) return;
 			// ExportVideoCoroutine calls StartRecording on completion; skip if export is in progress.
 			if (_isExporting) return;
@@ -235,7 +235,7 @@ namespace UnityReplayIntegration {
 
 		public bool IsRecording {
 			get {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 				return _currentSession != null;
 #else
 				return false;
@@ -245,7 +245,7 @@ namespace UnityReplayIntegration {
 
 		public bool IsPaused {
 			get {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 				return _currentSession?.IsPaused ?? false;
 #else
 				return false;
@@ -255,7 +255,7 @@ namespace UnityReplayIntegration {
 
 		/// <summary>Starts a new background recording session. No-op if already recording.</summary>
 		public void StartRecording() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			if (_currentSession != null) return;
 
 			var sessionBox = new SessionBox();
@@ -294,7 +294,7 @@ namespace UnityReplayIntegration {
 
 		/// <summary>Stops and discards the current recording session without exporting.</summary>
 		public void StopRecording() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			DisposeCurrentSession();
 			Debug.Log("[UnityReplayIntegration] Recording stopped.");
 #endif
@@ -302,14 +302,14 @@ namespace UnityReplayIntegration {
 
 		/// <summary>Pauses the current recording session.</summary>
 		public void PauseRecording() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_currentSession?.Pause();
 #endif
 		}
 
 		/// <summary>Resumes the current recording session.</summary>
 		public void ResumeRecording() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_currentSession?.Resume();
 #endif
 		}
@@ -322,7 +322,7 @@ namespace UnityReplayIntegration {
 		/// No-op when audio recording is disabled.
 		/// </summary>
 		public void SetAudioListener(AudioListener listener) {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_adaptiveProvider?.SetAudioListener(listener);
 #endif
 		}
@@ -334,7 +334,7 @@ namespace UnityReplayIntegration {
 		/// No-op when audio recording is disabled.
 		/// </summary>
 		public void RefreshAudioListener() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			_adaptiveProvider?.RefreshAudioListener();
 #endif
 		}
@@ -346,7 +346,7 @@ namespace UnityReplayIntegration {
 		/// </summary>
 		/// <param name="onComplete">Called with the exported file path, or null on failure.</param>
 		public void TriggerExportVideo(Action<string> onComplete = null) {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			if (_isExporting) {
 				Debug.LogWarning("[UnityReplayIntegration] Export already in progress.");
 				onComplete?.Invoke(null);
@@ -372,7 +372,7 @@ namespace UnityReplayIntegration {
 		#region Coroutine Implementations
 
 		private IEnumerator ExportVideoCoroutine(Action<string> onComplete) {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			// try/finally guarantees _isExporting is reset on every exit path (including
 			// a timed-out or faulted export), so a single stuck export can no longer wedge
 			// the flag true for the rest of the play session and block all future F9 presses.
@@ -469,7 +469,7 @@ namespace UnityReplayIntegration {
 #endif
 		}
 
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 		/// <summary>
 		/// Fire-and-forget observation of an export task we gave up waiting on. Awaiting it swallows
 		/// any eventual exception so an abandoned, faulting export does not raise an
@@ -528,7 +528,7 @@ namespace UnityReplayIntegration {
 		/// v0.1.6). Must run synchronously on the main thread; this can hitch for long sessions.
 		/// </summary>
 		private void DisposeCurrentSession() {
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 			if (_currentSession == null) return;
 			var session = _currentSession;
 			_currentSession = null;
@@ -542,7 +542,7 @@ namespace UnityReplayIntegration {
 
 		#endregion
 
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 		private sealed class SessionBox {
 			public RealtimeInstantReplaySession Session;
 		}

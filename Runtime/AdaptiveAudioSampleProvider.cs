@@ -1,4 +1,4 @@
-#if INSTANT_REPLAY_PRESENT
+#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY
 using InstantReplay;
 using UnityEngine;
 

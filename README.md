@@ -142,6 +142,16 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 - `{SIZE}` — 檔案大小（例如 `12.34 MB`）
 - `{LENGTH}` — 影片長度（例如 `1m10s`）
 
+## Build 設定（Settings 視窗）
+
+開啟 **Tools > Unity Replay Integration > Settings**，在 `Build Setting` 區塊可切換兩個排除選項。兩者都是寫入 **目前作用中的 platform group**（File > Build Settings 的 active target）的 scripting define symbols，切換平台後需重新確認。
+
+- `Exclude from Build (editor-only mode)`
+  加上 `UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD` define。Build 出來的 player 會完全跳過 Replay Integration：元件改為 no-op stub（`Instance` 仍維持正常 singleton，呼叫 API 不會 NPE），Discord / UniTask 整合檔案編譯為空。Editor 行為不受影響。
+- `Exclude InstantReplay`
+  加上 `EXCLUDE_INSTANTREPLAY` define。此 define 由 InstantReplay 套件自身的 asmdef（`defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`）辨識，會將 InstantReplay 的所有 assembly 與原生 encoder plugin 從專案中移除，適合暫時排除原生依賴以縮小 build 或排查問題。此時本 package 的錄影 API 全部降級為 no-op（回傳 `null`，不拋例外）。
+  注意：scripting define 同時作用於 Editor，因此勾選後 Play Mode 也無法錄影。
+
 ## 執行流程
 
 - 系統啟動後建立背景錄影 session

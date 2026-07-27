@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2026-07-27
+### Added
+- Settings 視窗 `Build Setting` 區塊新增 `Exclude InstantReplay` 開關：勾選後會為目前 platform group 加上 `EXCLUDE_INSTANTREPLAY` scripting define。此 define 由 InstantReplay 套件自身的 asmdef（`defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`）辨識，會將 InstantReplay 的所有 assembly 與原生 encoder plugin 從專案中移除。
+
+### Changed
+- Runtime 的 `#if INSTANT_REPLAY_PRESENT` 條件全面改為 `#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY`。`INSTANT_REPLAY_PRESENT` 來自 asmdef 的 versionDefine（僅代表套件已安裝），設定 `EXCLUDE_INSTANTREPLAY` 時不會自動關閉，因此需額外判斷，否則會參照到已被排除的 assembly 而編譯失敗。排除後所有錄影 API 維持 no-op，不會拋例外。
+
 ## [0.1.11] - 2026-07-26
 ### Added
 - `exportTimeoutSeconds` 欄位（Inspector `Recording` 區塊，預設 60 秒，範圍 0–300）：匯出影片時若 `StopAndExportAsync` 超過此秒數仍未完成，會放棄該 session、輸出錯誤訊息並自動重新開始錄影。設為 `0` 可維持舊行為（無限等待）。計時使用 `Time.unscaledDeltaTime`，`timeScale = 0` 時仍會正常倒數。

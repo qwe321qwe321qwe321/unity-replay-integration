@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-07-27
+### Changed
+- Settings 視窗的 `Exclude InstantReplay` 改為 **`Exclude InstantReplay from Build`**，語意由「專案層級排除」改成「只排除 build，Editor 照常錄影」。原本寫入的 `EXCLUDE_INSTANTREPLAY` 是 InstantReplay 套件自身 asmdef 的 `defineConstraints`，而 scripting define 無法只作用於 player，因此必然連 Editor 一起排除。新選項改寫入本 package 自己的標記 define `UNITY_REPLAY_INTEGRATION_EXCLUDE_INSTANTREPLAY_IN_BUILD`（沒有任何 asmdef 對它設 constraint，不影響 Editor 編譯），實際排除改在 build 當下執行：
+  - `IFilterBuildAssemblies` 將 `InstantReplay*` / `UniEnc*` managed assembly 從 player 濾除（保留其 NuGet 依賴）
+  - 比照 InstantReplay 自帶的 `PluginsExcluder`，build 期間把原生 encoder plugin 標記為該平台不相容，結束後還原；build 失敗或中斷時改在下次 domain reload 還原，避免 plugin 永久停用
+- 啟用 `Exclude InstantReplay from Build` 但未啟用 `Exclude from Build` 時，build 會以 `BuildFailedException` 擋下並說明原因（Replay Integration 仍參照 InstantReplay，移除 assembly 會做出壞掉的 player），Settings 視窗也會提前以錯誤訊息提示。
+- 專案若手動設定了 InstantReplay 的 `EXCLUDE_INSTANTREPLAY` kill switch，Settings 視窗會顯示警告說明其為專案層級（Editor 亦不編譯）。Runtime 的 `#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY` 守衛保留，因此手動設定時仍可正常編譯。
+- **升級注意**：若曾在 v0.1.12 / v0.1.13 勾選舊版的 `Exclude InstantReplay`，專案中會殘留 `EXCLUDE_INSTANTREPLAY` define，且新版 UI 不再管理它。請自行到 Project Settings > Player（或該 Build Profile 的 Player Settings override）移除；Settings 視窗偵測到時會顯示警告提醒。
+
 ## [0.1.13] - 2026-07-27
 ### Added
 - Settings 視窗會在 active Build Profile 的 Player Settings override 與專案設定不一致時顯示警告，標示該 define 對實際編譯與 build 而言目前是 SET 還是 NOT SET（實際生效的仍是 profile override）。

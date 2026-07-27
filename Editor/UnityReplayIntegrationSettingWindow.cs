@@ -174,7 +174,7 @@ namespace UnityReplayIntegration.Editor {
 		// ─────────────────────────────────────────────────────────────────
 		void DrawBuildSection() {
 			bool excluded = ReplayIntegrationBuildSettings.ExcludeFromBuild;
-			bool instantReplayExcluded = ReplayIntegrationBuildSettings.ExcludeInstantReplay;
+			bool instantReplayExcluded = ReplayIntegrationBuildSettings.ExcludeInstantReplayFromBuild;
 			Color accent = (excluded || instantReplayExcluded) ? new Color(0.85f, 0.55f, 0.15f) : new Color(0.30f, 0.65f, 0.35f);
 			DrawSectionHeader("Build Setting", accent, ref _buildFoldout, k_BuildFoldoutKey);
 			if (!_buildFoldout) return;
@@ -211,35 +211,46 @@ namespace UnityReplayIntegration.Editor {
 				EditorGUILayout.Space(6f);
 
 				EditorGUILayout.HelpBox(
-					instantReplayExcluded
-						? "InstantReplay is currently EXCLUDED for the " + currentGroup + " platform group. Its assemblies and native encoder plugins are stripped, so video recording is unavailable in the Editor as well."
-						: "InstantReplay is currently INCLUDED for the " + currentGroup + " platform group.",
+					(instantReplayExcluded
+						? "InstantReplay will be STRIPPED FROM BUILDS for the " + currentGroup + " platform group: its managed assemblies are filtered out of the player and its native encoder plugins are marked incompatible for the duration of the build."
+						: "InstantReplay is currently SHIPPED with builds for the " + currentGroup + " platform group.") +
+					"\nThe Editor is unaffected either way — recording keeps working in Play Mode.",
 					instantReplayExcluded ? MessageType.Warning : MessageType.Info
 				);
 
-				DrawProfileOverrideWarning(ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine, "Exclude InstantReplay");
+				DrawProfileOverrideWarning(ReplayIntegrationBuildSettings.ExcludeInstantReplayFromBuildDefine, "Exclude InstantReplay from Build");
 
 				bool nextInstantReplay = EditorGUILayout.ToggleLeft(
-					new GUIContent("Exclude InstantReplay — for " + currentGroup,
-						"When enabled, the " + ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine +
-						" scripting define is added to the currently active platform group (" + currentGroup + ") only. " +
-						"InstantReplay's own assembly definitions carry a !" + ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine +
-						" constraint, so its assemblies and native encoder plugins are dropped from the project entirely. " +
-						"Replay Integration compiles against it conditionally, so recording APIs become no-ops. " +
-						"Note: scripting defines also apply to the Editor, so recording stops working in Play Mode too."),
+					new GUIContent("Exclude InstantReplay from Build — for " + currentGroup,
+						"When enabled, the InstantReplay and UniEnc assemblies are removed from built players for the " +
+						"currently active platform group (" + currentGroup + ") only, and its native encoder plugins are " +
+						"excluded for the duration of the build. This is a build-time filter, not an assembly define " +
+						"constraint, so InstantReplay stays compiled in the Editor and Play Mode recording is unaffected. " +
+						"Requires \"Exclude from Build\" above, since Replay Integration itself would otherwise still call " +
+						"into the removed assemblies."),
 					instantReplayExcluded);
 				if (nextInstantReplay != instantReplayExcluded) {
-					ReplayIntegrationBuildSettings.ExcludeInstantReplay = nextInstantReplay;
+					ReplayIntegrationBuildSettings.ExcludeInstantReplayFromBuild = nextInstantReplay;
 					GUIUtility.ExitGUI();
 				}
 				EditorGUILayout.LabelField(
-					"Define: " + ReplayIntegrationBuildSettings.ExcludeInstantReplayDefine + "  (platform group: " + currentGroup + ")",
+					"Define: " + ReplayIntegrationBuildSettings.ExcludeInstantReplayFromBuildDefine + "  (platform group: " + currentGroup + ")",
 					EditorStyles.miniLabel);
 
 				if (instantReplayExcluded && !excluded) {
 					EditorGUILayout.HelpBox(
-						"InstantReplay is excluded but Replay Integration is still compiled in. The component stays alive and its API remains callable, but every recording call is a no-op. " +
-						"If you want the whole feature gone from the build, enable \"Exclude from Build\" above as well.",
+						"\"Exclude from Build\" is off, so Replay Integration is still compiled against InstantReplay and would call into the removed assemblies. " +
+						"Builds for " + currentGroup + " will fail with an explanatory error until you enable it (or turn this option off).",
+						MessageType.Error);
+				}
+
+				if (ReplayIntegrationBuildSettings.IsInstantReplayKillSwitchSet) {
+					EditorGUILayout.HelpBox(
+						"The InstantReplay package's own " + ReplayIntegrationBuildSettings.InstantReplayKillSwitchDefine +
+						" define is set in this project's scripting define symbols. That is a project-wide kill switch: " +
+						"the InstantReplay assemblies are not compiled at all, in the Editor either, so recording is " +
+						"unavailable everywhere and there is nothing left for this option to strip. " +
+						"Remove it from Project Settings > Player if that was not intended.",
 						MessageType.Warning);
 				}
 			}

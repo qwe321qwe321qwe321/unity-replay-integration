@@ -6,8 +6,8 @@ using UnityEngine;
 namespace UnityReplayIntegration.Editor {
 	/// <summary>
 	/// Manages the scripting defines that strip Replay Integration (<see cref="ExcludeDefine"/>) and
-	/// InstantReplay itself (<see cref="ExcludeInstantReplayDefine"/>) for the currently selected
-	/// build target group.
+	/// that ask <see cref="InstantReplayBuildExcluder"/> to drop InstantReplay from built players
+	/// (<see cref="ExcludeInstantReplayFromBuildDefine"/>), for the currently selected build target group.
 	///
 	/// Reads and writes go to the GLOBAL player settings in <c>ProjectSettings/ProjectSettings.asset</c>,
 	/// deliberately bypassing the active Build Profile. The <see cref="PlayerSettings"/> static API is
@@ -22,11 +22,19 @@ namespace UnityReplayIntegration.Editor {
 		public const string ExcludeDefine = "UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD";
 
 		/// <summary>
-		/// Define recognized by the InstantReplay package itself: its assembly definitions carry a
-		/// <c>!EXCLUDE_INSTANTREPLAY</c> constraint, so setting this drops the InstantReplay assemblies
-		/// and native plugins entirely.
+		/// Our own marker define, read by <see cref="InstantReplayBuildExcluder"/> during a build. It only
+		/// records intent — no assembly definition constrains on it, so Editor compilation and Play Mode
+		/// recording are unaffected.
 		/// </summary>
-		public const string ExcludeInstantReplayDefine = "EXCLUDE_INSTANTREPLAY";
+		public const string ExcludeInstantReplayFromBuildDefine = "UNITY_REPLAY_INTEGRATION_EXCLUDE_INSTANTREPLAY_IN_BUILD";
+
+		/// <summary>
+		/// The InstantReplay package's own project-wide kill switch: its assembly definitions carry a
+		/// <c>!EXCLUDE_INSTANTREPLAY</c> constraint, so when this is set (manually, in Player Settings)
+		/// the InstantReplay assemblies are not compiled at all — in the Editor either. This package
+		/// never sets it; it is only read so the UI can report the situation.
+		/// </summary>
+		public const string InstantReplayKillSwitchDefine = "EXCLUDE_INSTANTREPLAY";
 
 		const string k_ProjectSettingsPath = "ProjectSettings/ProjectSettings.asset";
 		const string k_DefinesProperty     = "scriptingDefineSymbols";
@@ -36,10 +44,16 @@ namespace UnityReplayIntegration.Editor {
 			set => SetDefine(ExcludeDefine, value);
 		}
 
-		public static bool ExcludeInstantReplay {
-			get => HasDefine(ExcludeInstantReplayDefine);
-			set => SetDefine(ExcludeInstantReplayDefine, value);
+		public static bool ExcludeInstantReplayFromBuild {
+			get => HasDefine(ExcludeInstantReplayFromBuildDefine);
+			set => SetDefine(ExcludeInstantReplayFromBuildDefine, value);
 		}
+
+		/// <summary>
+		/// True when the user has set the InstantReplay package's own kill switch by hand. Nothing is
+		/// left to strip from the build in that case, because the assemblies never compiled.
+		/// </summary>
+		public static bool IsInstantReplayKillSwitchSet => HasEffectiveDefine(InstantReplayKillSwitchDefine);
 
 		public static BuildTargetGroup SelectedGroup {
 			get {
@@ -54,8 +68,11 @@ namespace UnityReplayIntegration.Editor {
 		/// The value that actually applies to compilation and builds right now, which is the active
 		/// build profile's override when it has one, and the global setting otherwise.
 		/// </summary>
-		public static bool HasEffectiveDefine(string define) =>
-			SplitDefines(PlayerSettings.GetScriptingDefineSymbolsForGroup(SelectedGroup)).Contains(define);
+		public static bool HasEffectiveDefine(string define) => HasEffectiveDefine(define, SelectedGroup);
+
+		/// <inheritdoc cref="HasEffectiveDefine(string)"/>
+		public static bool HasEffectiveDefine(string define, BuildTargetGroup group) =>
+			SplitDefines(PlayerSettings.GetScriptingDefineSymbolsForGroup(group)).Contains(define);
 
 		/// <summary>
 		/// True when the active build profile overrides player settings in a way that disagrees with

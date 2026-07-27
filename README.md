@@ -148,15 +148,24 @@ https://github.com/qwe321qwe321qwe321/unity-media-collecting-solution.git
 
 - `Exclude from Build (editor-only mode)`
   加上 `UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD` define。Build 出來的 player 會完全跳過 Replay Integration：元件改為 no-op stub（`Instance` 仍維持正常 singleton，呼叫 API 不會 NPE），Discord / UniTask 整合檔案編譯為空。Editor 行為不受影響。
-- `Exclude InstantReplay`
-  加上 `EXCLUDE_INSTANTREPLAY` define。此 define 由 InstantReplay 套件自身的 asmdef（`defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`）辨識，會將 InstantReplay 的所有 assembly 與原生 encoder plugin 從專案中移除，適合暫時排除原生依賴以縮小 build 或排查問題。此時本 package 的錄影 API 全部降級為 no-op（回傳 `null`，不拋例外）。
-  注意：scripting define 同時作用於 Editor，因此勾選後 Play Mode 也無法錄影。
+- `Exclude InstantReplay from Build`
+  加上 `UNITY_REPLAY_INTEGRATION_EXCLUDE_INSTANTREPLAY_IN_BUILD` define。這個 define 只是「意圖標記」，沒有任何 asmdef 對它設 constraint，**Editor 完全不受影響，Play Mode 仍可正常錄影**。實際排除發生在 build 當下：
+  - 透過 `IFilterBuildAssemblies` 將 `InstantReplay*` 與 `UniEnc*` 的 managed assembly 從 player 濾掉（InstantReplay 依賴的 `System.Threading.Channels` 等 NuGet 套件保留不動，因為其他 package 也可能用到）
+  - 比照 InstantReplay 自帶的 `PluginsExcluder` 作法，build 期間將其原生 encoder plugin 對該平台標記為不相容，build 結束後還原（build 失敗或中斷時，會在下次 domain reload 自動還原）
+
+  **前提**：必須同時啟用上面的 `Exclude from Build`。否則 Replay Integration 本身仍編譯成參照 InstantReplay 的版本，移掉 assembly 會做出壞掉的 player；此時 build 會被擋下並輸出說明訊息，而不是等到 IL2CPP/link 階段才爆。
 
 ### 與 Build Profile 的關係（Unity 6）
 
 Unity 6 起，若目前作用中的 Build Profile 帶有 **Player Settings override**，`PlayerSettings` 的 static API 會解析到該 profile 的 PlayerSettings 副本，寫入的 define 會落在 build profile asset 裡而不是專案設定。此 package 的兩個 toggle 一律直接讀寫全域的 `ProjectSettings/ProjectSettings.asset`，不受 active profile 影響。
 
 由於實際編譯與 build 仍以 profile override 為準，當兩者不一致時，Settings 視窗會顯示警告，標示該 define 目前對編譯而言究竟是 SET 還是 NOT SET。此時請改到該 profile 的 Player Settings override 調整，或停用該 profile。
+
+### 關於 InstantReplay 自帶的 `EXCLUDE_INSTANTREPLAY`
+
+InstantReplay 套件本身提供 `EXCLUDE_INSTANTREPLAY` define，其 6 個 asmdef 都掛有 `defineConstraints: ["!EXCLUDE_INSTANTREPLAY"]`。由於 scripting define 無法只作用於 player，這個 define 是**專案層級的 kill switch**：一旦設定，InstantReplay 在 Editor 也不會被編譯，Play Mode 同樣無法錄影。
+
+此 package **不會**自動設定它。若你手動在 Player Settings 加了這個 define，Settings 視窗會顯示警告提醒。本 package 的所有 InstantReplay 呼叫都以 `#if INSTANT_REPLAY_PRESENT && !EXCLUDE_INSTANTREPLAY` 包住，因此手動設定時仍可正常編譯，錄影 API 降級為 no-op（回傳 `null`，不拋例外）。
 
 ## 執行流程
 

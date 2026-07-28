@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] - 2026-07-29
+### Fixed
+- `AdaptiveAudioSampleProvider.cs` 缺少與其他檔案（`UnityReplayIntegration.cs`、`UnityReplayIntegrationDiscordBridge.cs`、`UnityReplayIntegrationUniTaskExtensions.cs`）一致的 `UNITY_EDITOR || !UNITY_REPLAY_INTEGRATION_EXCLUDED_IN_BUILD` 守衛，導致啟用 `Exclude from Build` 時該檔案仍會被編譯進 player 而參照到已排除的 InstantReplay assembly。
+
 ## [0.1.14] - 2026-07-27
 ### Changed
 - Settings 視窗的 `Exclude InstantReplay` 改為 **`Exclude InstantReplay from Build`**，語意由「專案層級排除」改成「只排除 build，Editor 照常錄影」。原本寫入的 `EXCLUDE_INSTANTREPLAY` 是 InstantReplay 套件自身 asmdef 的 `defineConstraints`，而 scripting define 無法只作用於 player，因此必然連 Editor 一起排除。新選項改寫入本 package 自己的標記 define `UNITY_REPLAY_INTEGRATION_EXCLUDE_INSTANTREPLAY_IN_BUILD`（沒有任何 asmdef 對它設 constraint，不影響 Editor 編譯），實際排除改在 build 當下執行：
